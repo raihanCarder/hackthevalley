@@ -1,0 +1,9 @@
+# Mannequin v1
+
+Original procedural stylized mannequin authored for this repository by Hack the Valley project contributors with Codex assistance on 2026-10-17. No downloaded mesh, textures, or third-party anatomy assets were used. Source URL: not applicable (original work). Source generator: `src/body/mannequin.ts`; reproducible export: `npm run body:generate`. License: MIT-style asset permission, full text in `LICENSE.txt`; retain that notice when redistributing the asset.
+
+The local asset `mannequin-v1.json` contains indexed positions, analytic normals, UV coordinates, and named island metadata. The renderer consumes this checked-in asset rather than a separately generated model. This is a neutral, intentionally simplified A-pose mannequin, not a medically accurate anatomy model. Hands and feet are stylized closed forms without individual fingers or toes. Component volumes overlap at joints; every individual surface has unique UVs. Hidden internal overlaps consume some atlas space; future measurements must be described as map coverage, not skin area.
+
+Body-map version: `mannequin-v1`. Atlas: 512x512, 8x8 tiles, 4px gutter each edge of a tile. Every front/back component patch occupies its own 56x56px rectangle. Torso front/back each split into upper/lower islands. No UV mirroring or reuse; seams duplicate geometric edge vertices at separate UVs. Pole fans omit degenerate triangles. Atlas version changes whenever geometry, regions, island order, or UVs change.
+
+Audit: `tests/body.test.ts` checks the exported asset against the generator, positive-area triangles, all UV vertices in their island, pairwise disjoint island bounds, correct region coverage, outward normals, and complete front/back representation. Browser verification checks front/back/left/right views and mode separation. Raster region-ID and island masks, seam adjacency, and painting checks are later tasks; the island metadata is the frozen input to those tasks.
