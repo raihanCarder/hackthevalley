@@ -83,6 +83,7 @@ export function BodyDiagram({ observations, selectedRegionId, onSelectRegion }: 
 
   return (
     <div className={styles.diagramStage} aria-label="Anatomical body pain map">
+      <span className="sr-only">Regional measurements, not exact painted locations. Use the 3D mannequin to inspect saved markings.</span>
       <svg
         viewBox="0 0 420 445"
         className={styles.diagramSvg}
@@ -143,12 +144,9 @@ export function BodyDiagram({ observations, selectedRegionId, onSelectRegion }: 
                   }
                 }}
               >
-                <title>
-                  {region.name} ({region.side})
-                  {obs
+                <title>{`${region.name} (${region.side})${obs
                     ? ` — ${obs.painType.toUpperCase()} (Peak ${obs.peakIntensity}/10, ${(obs.mapCoverage * 100).toFixed(0)}% coverage)`
-                    : " — No pain recorded"}
-                </title>
+                    : " — No markings recorded"}`}</title>
               </rect>
             </g>
           );

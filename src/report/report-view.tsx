@@ -56,6 +56,7 @@ export function ReportView() {
   const [summary, setSummary] = useState<Summary>({ state: "factual" });
   const [gemini, setGemini] = useState<GeminiStatus>({ state: "unknown" });
   const viewer = useRef<BodyHandle | null>(null);
+  const summaryAbort = useRef<AbortController | null>(null);
   const rangeDays = daysBetween(range.from, range.to);
   const rangeError = !range.from || !range.to ? "Choose both dates." : rangeDays < 1 ? "The start date must be on or before the end date."
     : rangeDays > MAX_RANGE_DAYS ? `Choose a range of up to ${MAX_RANGE_DAYS} days.` : null;
@@ -64,12 +65,13 @@ export function ReportView() {
     const abort = new AbortController();
     fetch("/api/report", { cache: "no-store", signal: abort.signal }).then(response => response.json())
       .then(body => setGemini(body?.gemini?.state === "configured" ? { state: "configured", model: String(body.gemini.model) } : { state: "not-configured" }))
-      .catch(() => { if (!abort.signal.aborted) setGemini({ state: "not-configured" }); });
+      .catch(() => { if (!abort.signal.aborted) setGemini({ state: "unknown" }); });
     return () => abort.abort();
   }, []);
 
   // Load saved entries for the selected profile and range; late results never replace a newer selection.
   useEffect(() => {
+    summaryAbort.current?.abort();
     if (rangeError) return;
     const abort = new AbortController();
     setLoad({ state: "loading" }); setComposite(null); setCaptures({ state: "pending" }); setSummary({ state: "factual" });
@@ -84,7 +86,7 @@ export function ReportView() {
       if (abort.signal.aborted) return;
       setLoad(error instanceof StorageNotChosen ? { state: "needs-storage", message: error.message } : { state: "error", message: (error as Error).message || "Your saved check-ins couldn’t be loaded." });
     });
-    return () => abort.abort();
+    return () => { abort.abort(); summaryAbort.current?.abort(); };
   }, [profile, range.from, range.to, rangeError, reloadKey]);
 
   // Fixed front/back captures of the range composite, rendered by the read-only body viewer.
@@ -108,14 +110,18 @@ export function ReportView() {
 
   const requestSummary = useCallback(async () => {
     if (!ready) return;
+    summaryAbort.current?.abort();
+    const abort = summaryAbort.current = new AbortController();
     setSummary({ state: "loading" });
     try {
       const body = profile === "maya" ? { profile, from: range.from, to: range.to } : { profile, from: range.from, to: range.to, entries: ready.model.entries };
-      const response = await fetch("/api/report/summary", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const response = await fetch("/api/report/summary", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal: abort.signal });
       const payload = await response.json().catch(() => null);
+      if (abort.signal.aborted) return;
       if (!response.ok || !payload?.summary) throw new Error(payload?.error?.message ?? "The summary service is unavailable.");
       setSummary({ state: "done", result: payload.summary as SummaryResponse });
     } catch (error) {
+      if (abort.signal.aborted) return;
       setSummary({ state: "error", message: (error as Error).message });
     }
   }, [ready, profile, range.from, range.to]);
@@ -245,6 +251,7 @@ function SummaryBlock({ summary, factual, gemini, onRequest, onFactual }: { summ
       {summary.state === "error" && <p role="alert">{summary.message} The factual summary is shown.</p>}
       {fromGemini && <button type="button" onClick={onFactual}>Use the factual summary instead</button>}
       {gemini.state === "not-configured" && <p>Gemini isn’t configured on this server, so this summary is not AI-generated.</p>}
+      {gemini.state === "unknown" && <p>Gemini availability is unknown. The factual summary remains available.</p>}
     </div>
   </div>;
 }

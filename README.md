@@ -2,41 +2,35 @@
 
 ## Pain journal
 
-The Next.js App Router / React / TypeScript app includes a browser-only Three.js mannequin and Owner B's journal infrastructure. Rotate by dragging, use named views, or focus the canvas and use arrow keys, +/−, and Home. The check-in page adds date-specific note drafts and explicit browser/PostgreSQL store selection. History and report routes remain labeled placeholders.
+Paint four independent sensations directly on a rotatable 3D body, save a daily check-in with a note, and inspect exact saved maps in History. Maya supplies 42 clearly labeled synthetic check-ins for playback, regional intensity/coverage trends, and two-date comparison. The appointment report uses the same records and analysis, with front/back range composites and one-page A4/Letter printing.
 
-Owner A is implementing painting and real map validation/reduction separately. Until those are connected, body-map save/copy/empty actions are disabled; notes are unsaved page-local drafts. Owner C's read-only Maya fixture is also pending. No test fixture is used as real journal history.
-
-Requires Node.js 20.19+ and npm (verified with Node 22.16.0).
+Requires Node.js 20.19+ and npm. No external service is required for browser-local check-ins, Maya, trends, comparisons, or the factual report.
 
 ```sh
 npm ci
 npm run dev
 ```
 
-Open http://localhost:3000. The Node-runtime foundation endpoint is `/api/status`.
+Open http://localhost:3000. Paint, save, reload the same date, and open History → Visitor. Copy a previous map to edit another date; an unsaved draft never becomes a recorded check-in. Missing dates remain distinct from explicitly saved empty maps.
 
 ```sh
 npm test
 npm run typecheck
 npm run build
 npm start
-```
-
-Browser verification (start the dev or production server first):
-
-```sh
+# With a running server:
 npx playwright install chromium
 npm run test:browser
-# For another port: TEST_BASE_URL=http://127.0.0.1:3001 npm run test:browser
+# Another port: TEST_BASE_URL=http://127.0.0.1:3014 npm run test:browser
 ```
 
-The original mannequin and attribution live in `public/body/`; regenerate it with `npm run body:generate`. The [body/entry contract](docs/body-contract.md) records coordinates, UVs, regions, and versions. The [UI direction](docs/ui-design.md) covers layout and accessible controls.
+The [demo guide](docs/demo.md) covers painting → Maya playback → trends/comparison → report. See [integration verification](docs/integration-verification.md) for observed checks and limits.
 
-### Journal storage and handoffs
+### Storage
 
-The default mode is IndexedDB, with explicitly selected local PostgreSQL and temporary visitor sessions; no sign-in or Gemini key is needed. Failed server requests preserve drafts and the selected store. Both adapters expose the same bounded list/read/previous/upsert interface. The [journal documentation](docs/journal.md) describes interfaces for A/C/D, configuration, and remaining real-map acceptance checks.
+The default is **This browser (IndexedDB)**. **Local PostgreSQL** is an explicit alternative with temporary visitor sessions and no sign-in. The selection is shared across check-in, history, and report. Failed saves retain the draft and never change stores.
 
-Optional local PostgreSQL setup:
+For local PostgreSQL:
 
 ```sh
 docker compose -f db/compose.yml up -d --wait
@@ -45,9 +39,28 @@ npm run db:migrate
 npm run dev
 ```
 
-For an existing ordinary PostgreSQL database, set `DATABASE_URL` in `.env.local` and run the migration command. No TimescaleDB or cloud service is required. Choose **Local PostgreSQL** in the form. After A's map integration lands, verify a painted check-in saves and reloads exactly; that end-to-end check is still pending. Keep database/Gemini credentials server-only.
+For an existing ordinary PostgreSQL server, create a database, set `DATABASE_URL` in `.env.local`, and run the same migration. No TimescaleDB extension or cloud service is needed. Choose **Local PostgreSQL**, paint, save, reload the same date, then inspect Visitor history and its report. Detailed setup, the bounded repository interface, versions, and isolation are in [journal documentation](docs/journal.md).
 
-Run storage checks with `TEST_DATABASE_URL=<local-connection-string> npm run test:journal:postgres`. This uses a temporary test schema and verifies rollback and visitor isolation. Regular `npm test` requires no database/Gemini credentials and discovers nested feature tests.
+```sh
+TEST_DATABASE_URL=<local-connection-string> npm run test:journal:postgres
+# With the app connected to that database:
+TEST_JOURNAL_STORAGE=postgresql npm run test:browser -- tests/browser/journal-history.spec.ts
+```
+
+### Gemini report summaries
+
+Gemini is included in the MVP. Add your own server-side settings to `.env.local` and restart the server:
+
+```dotenv
+GEMINI_API_KEY=your-key
+GEMINI_MODEL=your-enabled-model-id
+```
+
+Open the report and click **Organize with Gemini** to send that report's saved facts and notes. Save never calls Gemini. Only statements validated against the evidence are displayed; missing keys, timeouts, provider failures, and invalid replies retain the labeled factual summary. Configuration is separate from PostgreSQL. See [report documentation](docs/report.md) for validation, local fake-provider checks, print behavior, and the live-verification limit.
+
+### Assets and feature documentation
+
+The original mannequin and attribution are in `public/body/`; regenerate with `npm run body:generate`. Regenerate Maya with `npm run demo:generate` (deterministic, no network). The [body contract](docs/body-contract.md), [editor interface](docs/body-editor.md), [history architecture](docs/history.md), and [UI direction](docs/ui-design.md) describe the shared implementation.
 
 ## OpenSpec (optional)
 

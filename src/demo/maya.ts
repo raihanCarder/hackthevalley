@@ -22,12 +22,19 @@ export const MAYA_PROFILE: SyntheticProfile = {
   },
 };
 
-export const MAYA_ENTRIES: readonly DailyEntry[] = Object.freeze(mayaDataRaw as DailyEntry[]);
+function freezeDeep<T>(value: T): T {
+  if (value && typeof value === "object") {
+    for (const child of Object.values(value)) freezeDeep(child);
+    Object.freeze(value);
+  }
+  return value;
+}
+export const MAYA_ENTRIES: readonly DailyEntry[] = freezeDeep(mayaDataRaw as DailyEntry[]);
 
 export function getMayaEntry(date: string): DailyEntry | null {
-  return MAYA_ENTRIES.find(entry => entry.localDate === date) ?? null;
+  return structuredClone(MAYA_ENTRIES.find(entry => entry.localDate === date) ?? null);
 }
 
 export function listMayaEntries(): DailyEntry[] {
-  return [...MAYA_ENTRIES];
+  return structuredClone([...MAYA_ENTRIES]);
 }

@@ -1,6 +1,25 @@
-import type { JournalMapServices, SyntheticJournalSource } from "./repository";
+import { decodePaintSnapshot, reduceRegions } from "../body/map-utils";
+import { MAYA_ENTRIES } from "../demo/maya";
+import { checkRead, JournalError, summarizeEntry, validateRange, type JournalMapServices, type SyntheticJournalSource } from "./repository";
 
-// Integration points owned by B. Connect A's pure validator/reducer and C's fixture
-// here after their handoffs land; do not add replacement algorithms or demo data.
-export const journalMapServices: JournalMapServices | null = null;
-export const syntheticJournalSource: SyntheticJournalSource | null = null;
+function requireMaya(profile: string) {
+  if (profile !== "maya") throw new JournalError("forbidden", "This source contains only Maya's synthetic records.");
+}
+
+export const journalMapServices: JournalMapServices = {
+  async validateAndMeasure(maps) { return reduceRegions(await decodePaintSnapshot(maps)); },
+};
+export const syntheticJournalSource: SyntheticJournalSource = {
+  async list(profile, range, options) {
+    requireMaya(profile); validateRange(range); checkRead(options);
+    return MAYA_ENTRIES.filter(e => e.localDate >= range.from && e.localDate <= range.to).map(summarizeEntry);
+  },
+  async read(profile, date, options) {
+    requireMaya(profile); checkRead(options);
+    return structuredClone(MAYA_ENTRIES.find(e => e.localDate === date) ?? null);
+  },
+  async previous(profile, before, options) {
+    requireMaya(profile); checkRead(options);
+    return structuredClone(MAYA_ENTRIES.filter(e => e.localDate < before).at(-1) ?? null);
+  },
+};

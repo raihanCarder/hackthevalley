@@ -39,12 +39,16 @@ export async function loadSavedEntries(profile: ReportProfileKey, range: { from:
     await server.bootstrap();
     repository = server;
   }
-  const summaries = await repository.list("visitor", range, { signal });
-  const entries: DailyEntry[] = [];
-  for (const summary of summaries) {
-    const entry = await repository.read("visitor", summary.localDate, { signal });
-    if (entry) entries.push(entry);
+  try {
+    const summaries = await repository.list("visitor", range, { signal });
+    const entries: DailyEntry[] = [];
+    for (const summary of summaries) {
+      const entry = await repository.read("visitor", summary.localDate, { signal });
+      if (entry) entries.push(entry);
+    }
+    if (signal.aborted) throw new JournalError("cancelled", "The report request was cancelled.");
+    return { profileId: entries[0]?.profileId ?? summaries[0]?.profileId ?? "visitor", entries, storage };
+  } finally {
+    if (repository instanceof IndexedDbJournal) await repository.close();
   }
-  if (signal.aborted) throw new JournalError("cancelled", "The report request was cancelled.");
-  return { profileId: entries[0]?.profileId ?? summaries[0]?.profileId ?? "visitor", entries, storage };
 }

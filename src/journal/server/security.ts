@@ -14,7 +14,9 @@ export function validToken(token: string | undefined): token is string {
 }
 export function assertSameOrigin(request: Request): void {
   const origin = request.headers.get("origin");
-  const expected = process.env.APP_ORIGIN ?? new URL(request.url).origin;
+  const url = new URL(request.url);
+  const host = request.headers.get("host");
+  const expected = process.env.APP_ORIGIN ?? (host ? `${url.protocol}//${host}` : url.origin);
   if (origin !== expected || request.headers.get("sec-fetch-site") === "cross-site") {
     throw new JournalError("forbidden", "This change must come from the pain journal page.");
   }

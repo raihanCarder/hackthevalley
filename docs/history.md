@@ -1,6 +1,6 @@
 # History & Longitudinal Analysis Architecture
 
-Owner C documentation for Task 4.
+Integrated task 4 implementation.
 
 ## Overview
 
@@ -9,8 +9,10 @@ The history feature powers the second core selling point of the pain journal: **
 ## Modules and Responsibilities
 
 - `src/timeline/analysis.ts`: Pure, browser- and Node-compatible shared analysis engine. Computes regional trends, date comparisons, and report evidence without React, browser globals, database connections, or AI services.
-- `src/timeline/playback.ts`: Playback controller state machine handling chronological playback, small-window prefetching, cancellation on seek/profile change, and end-of-range stops.
-- `src/timeline/body-diagram.tsx`: Stylized 2D anatomical map showing front and back views with color-coded sensation highlights and interactive region selection.
+- `src/timeline/playback.ts`: Chronological playback from the selected date, live speed changes, pause/seek, and end-of-range stops.
+- `src/timeline/map-loader.ts`: Eight-entry decoded-map cache; loads the selected map and prefetches the next two calendar dates. Aborted reads are neither displayed nor cached.
+- `src/timeline/map-comparison.tsx`: Two labeled read-only saved maps plus regional peak/coverage deltas and missing-date explanations.
+- `src/timeline/body-diagram.tsx`: Optional region overview, explicitly schematic. The default 3D BodyViewer restores exact saved layers.
 - `src/timeline/trend-chart.tsx`: Lightweight, dependency-free interactive SVG trend chart displaying daily peak intensity and map coverage with visible gaps for unrecorded days.
 - `src/timeline/history-view.tsx`: Unified client component combining profile switching, calendar scrubber, visual stage, and analysis rail.
 - `src/timeline/timeline.module.css`: Feature-local CSS module adhering to the design system and `frontend-design` principles.
@@ -41,9 +43,19 @@ The history feature powers the second core selling point of the pain journal: **
 
 ### 4. Playback and Cancellation Semantics
 - Playback progresses chronologically from start date to end date and stops at the end of the range.
-- Scrubbing the slider, stepping back/forward, or switching profiles immediately cancels active playback and increments a sequence token to discard any in-flight asynchronous requests.
+- Scrubbing, stepping, range changes, profile switches, and leaving the page cancel playback and abort outdated map reads/decodes. Selection and loader identity guards prevent late results from reaching the screen.
 - Playback is strictly read-only and never modifies saved entries or check-in drafts.
 - Playback is disabled when a profile has fewer than two recorded entries.
 
 ### 5. Shared Evidence for Appointment Report (Owner D)
 `computeReportEvidence` in `src/timeline/analysis.ts` exports the identical aggregated facts, dates, and counts for Milestone 5 (Owner D), preventing duplicate trend or evidence reducers.
+
+## Repository and range integration
+
+Maya reads use the immutable synthetic source. Visitor reads honor the same IndexedDB/PostgreSQL preference as the check-in and report pages. A bounded metadata list supplies analysis; selected/comparison maps and notes are exact date-specific reads. Failures show an error and never become fabricated empty history or another store. Profile switching remembers the selected range/date. Range controls update trends, playback, counts, and comparison dates. A saved empty map contributes zero, a missing date contributes a gap, and comparisons require two recorded dates from the same profile.
+
+Maya's generator imports the actual `PaintEngine`, atlas, intensity conversion, reducer, and lossless encoder. It contains no separate stamp/reducer/PNG implementation. All 42 maps are decoded and re-measured in the credential-free tests; every stored observation must agree exactly. The fixture is deeply frozen, while repository reads return detached copies.
+
+## Acceptance
+
+The browser rehearsal traversed all 42 dates at 2x, verified chronological order, stop-at-end, and cancellation after scrubbing. It verified exact layer hashes after saves/reloads, profile restoration, selected ranges, single-entry playback disabling, missing/empty states, both comparison maps, and saved-only reports. The same daily path passed against real local PostgreSQL with isolated visitor sessions. See [integration verification](integration-verification.md) for commands and limits.

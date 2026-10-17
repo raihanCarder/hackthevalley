@@ -16,6 +16,7 @@ export function CheckInPanel({ storage, repository, editor, connectionError, onB
   const [message, setMessage] = useState<string | null>(null);
   const [readState, setReadState] = useState<"unknown" | "missing" | "recorded" | "error">("unknown");
   const drafts = useRef(new Map<string, JournalDraft>());
+  const mapVersions = useRef(new Map<string, number>());
   const active = useRef<JournalDraft | null>(null);
   const selection = useRef(0);
   const loadAbort = useRef<AbortController | null>(null);
@@ -50,7 +51,9 @@ export function CheckInPanel({ storage, repository, editor, connectionError, onB
       }
       return;
     }
-    if (!repository) return;
+    mapVersions.current.set(`${storage}:${date}`, (mapVersions.current.get(`${storage}:${date}`) ?? 0) + 1);
+    if (editor) await editor.clear({ signal: abort.signal });
+    if (revision !== selection.current || !repository) return;
     setLoading(true);
     try {
       const entry = await repository.read("visitor", date, { signal: abort.signal });
@@ -80,7 +83,20 @@ export function CheckInPanel({ storage, repository, editor, connectionError, onB
 
   useEffect(() => editor?.subscribe(() => {
     const current = active.current;
-    if (current) update(editDraft(current, {}));
+    if (!current) return;
+    const next = editDraft(current, {});
+    const key = `${currentStorage.current}:${next.localDate}`;
+    const mapVersion = (mapVersions.current.get(key) ?? 0) + 1;
+    mapVersions.current.set(key, mapVersion);
+    update(next);
+    // Keep a detached map with an in-memory draft even if its store/date changes before encoding finishes.
+    void editor.snapshot().then(maps => {
+      const cached = drafts.current.get(key);
+      if (!cached || mapVersions.current.get(key) !== mapVersion) return;
+      const withMap = { ...cached, maps };
+      drafts.current.set(key, withMap);
+      if (`${currentStorage.current}:${active.current?.localDate}` === key && active.current?.revision === cached.revision) update(withMap);
+    }).catch(() => { /* The next explicit save reports encoding errors and retains the draft. */ });
   }), [editor]);
 
   useEffect(() => { onBusyChange?.(busy); }, [busy, onBusyChange]);
@@ -117,17 +133,20 @@ export function CheckInPanel({ storage, repository, editor, connectionError, onB
     if (!editor || !repository || !active.current || busy) return;
     setBusy(true); setMessage(null);
     const selected = selection.current;
+    const key = `${currentStorage.current}:${active.current.localDate}`;
     try {
       if (kind === "previous") {
         const entry = await repository.previous("visitor", active.current.localDate);
         if (selected !== selection.current) return;
         if (!entry) { setMessage("There is no earlier recorded check-in to copy."); return; }
+        mapVersions.current.set(key, (mapVersions.current.get(key) ?? 0) + 1);
         await editor.load(entry.maps);
-        if (selected === selection.current && active.current) update(copyPreviousMap(active.current, entry));
+        if (selected === selection.current && active.current) { update(copyPreviousMap(active.current, entry)); setReadState("unknown"); }
       } else {
+        mapVersions.current.set(key, (mapVersions.current.get(key) ?? 0) + 1);
         await editor.clear();
         const maps = await editor.snapshot();
-        if (selected === selection.current && active.current) update({ ...editDraft(active.current, { maps }), copiedFrom: null });
+        if (selected === selection.current && active.current) { update({ ...editDraft(active.current, { maps }), copiedFrom: null }); setReadState("unknown"); }
       }
     } catch (error) {
       if (selected === selection.current) setMessage(error instanceof Error ? error.message : "The body map could not be prepared. Your note is still here.");
@@ -138,7 +157,7 @@ export function CheckInPanel({ storage, repository, editor, connectionError, onB
     if (!value || busy) return;
     try {
       const date = parseLocalDate(value);
-      if (editor && active.current?.saveState === "unsaved") {
+      if (editor && active.current && ["unsaved", "error", "saving"].includes(active.current.saveState)) {
         const maps = await editor.snapshot();
         if (active.current) update({ ...active.current, maps });
       }
@@ -165,7 +184,7 @@ export function CheckInPanel({ storage, repository, editor, connectionError, onB
       <div className={styles.noteMeta}><span id="note-help">Written in your own words.</span><span id="note-length">{draft.note.length.toLocaleString()} / 4,000</span></div>
     </div>
     <p className={styles.explanation}>An empty map is recorded only when you save it. Days you skip stay unrecorded.</p>
-    <button className={styles.save} type="button" disabled={unavailable || busy || loading} onClick={() => void save()}>{draft.saveState === "error" ? "Retry saving check-in" : draft.saveState === "saving" ? "Saving check-in…" : "Save check-in"}</button>
+    <button className={styles.save} type="button" disabled={unavailable || busy || loading || readState === "error"} onClick={() => void save()}>{draft.saveState === "error" ? "Retry saving check-in" : draft.saveState === "saving" ? "Saving check-in…" : "Save check-in"}</button>
     {(draft.error || message || connectionError) && <p className={styles.error} role="alert">{draft.error ?? message ?? connectionError}</p>}
     {unavailable && <p className={styles.explanation}>Saving body maps is not available yet. Your note stays here while this page is open.</p>}
     <p className={styles.privacy}>Notes are not sent to an AI service when you save a check-in.</p>

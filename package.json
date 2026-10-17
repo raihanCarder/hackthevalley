@@ -15,7 +15,8 @@
     "test:journal:postgres": "node --import tsx --test tests/journal/postgres.integration.ts",
     "db:migrate": "node --import tsx db/migrate.ts",
     "test:browser": "playwright test",
-    "body:generate": "node --import tsx scripts/generate-body.ts"
+    "body:generate": "node --import tsx scripts/generate-body.ts",
+    "demo:generate": "node --import tsx scripts/generate-maya.ts"
   },
   "dependencies": {
     "@next/env": "16.4.2",

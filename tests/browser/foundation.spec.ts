@@ -71,7 +71,7 @@ test("navigation remounts a single working scene", async ({ page }) => {
   for (let i = 0; i < 2; i++) {
     await expect(page.locator(".scene-mount")).toHaveAttribute("data-status", "ready");
     await page.getByRole("link", { name: "History", exact: true }).click();
-    await expect(page.locator("canvas")).toHaveCount(0);
+    await expect(page.getByRole("region", { name: "Body map", exact: true })).toHaveCount(0);
     await page.getByRole("link", { name: "Check-in", exact: true }).click();
   }
   await expect(page.locator(".scene-mount")).toHaveAttribute("data-status", "ready");

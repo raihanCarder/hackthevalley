@@ -298,7 +298,7 @@
 }
 
 .canvasStage {
-  height: 440px;
+  min-height: 440px;
   position: relative;
 }
 
@@ -673,7 +673,16 @@
   .statGrid {
     grid-template-columns: 1fr;
   }
-  .canvasStage, .diagramStage {
+  .diagramStage {
     height: 380px;
   }
 }
+.comparisonMaps { display: grid; gap: 16px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.rangeControls { max-width: 640px; margin-block: 16px; }
+.analysisColumn[hidden], .scrubberCard[hidden] { display: none; }
+.comparisonMaps h3 { font-size: 14px; }
+.comparisonTable { overflow-x: auto; margin-block: 16px; }
+.comparisonTable table { width: 100%; border-collapse: collapse; font-size: 12px; text-align: left; }
+.comparisonTable th, .comparisonTable td { padding: 8px; border-bottom: 1px solid var(--border); }
+.comparisonTable caption { text-align: left; margin-block: 8px; font-weight: 700; }
+@media (max-width: 900px) { .comparisonMaps { grid-template-columns: minmax(0, 1fr); } }

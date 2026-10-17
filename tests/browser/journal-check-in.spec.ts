@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
-import { entry } from "../journal/fixtures";
+import { MAYA_ENTRIES } from "../../src/demo/maya";
+const entry = (date: string) => ({ ...MAYA_ENTRIES[0], id: `visitor-${date}`, profileId: "visitor-test", localDate: date });
 
 test("date-specific notes remain drafts and skipped dates stay unrecorded", async ({ page }) => {
   await page.goto("/");
@@ -14,8 +15,7 @@ test("date-specific notes remain drafts and skipped dates stay unrecorded", asyn
   await expect(page.getByText("No check-in recorded", { exact: true })).toBeVisible();
   await date.fill("2026-10-15");
   await expect(note).toHaveValue("A note for the 15th");
-  await expect(page.getByRole("button", { name: "Save check-in", exact: true })).toBeDisabled();
-  await expect(page.getByText("Saving body maps is not available yet.", { exact: false })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Save check-in", exact: true })).toBeEnabled();
   const count = await page.evaluate(() => new Promise<number>((resolve, reject) => {
     const open = indexedDB.open("pain-journal-v1");
     open.onsuccess = () => {
@@ -112,7 +112,22 @@ test("API rejects cross-origin writes, Maya writes, invalid dates, and unbounded
   expect(profile.status()).toBe(403);
   const status = await request.get("/api/status");
   const body = await status.json();
-  expect(body.services.bodyMaps).toBe("Pending integration");
+  expect(body.services.bodyMaps).toBe("Connected");
   expect(JSON.stringify(body)).not.toContain("DATABASE_URL");
   expect(JSON.stringify(body)).not.toContain("GEMINI_API_KEY");
+});
+
+test("unavailable PostgreSQL history is never labeled browser storage, empty history, or missing observations", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("pain-journal-storage", "postgresql"));
+  await page.route("**/api/session", route => route.fulfill({ status: 503, json: { error: { code: "unavailable", message: "PostgreSQL is unavailable." } } }));
+  await page.goto("/history");
+  await page.getByRole("button", { name: "Visitor (My Journal)" }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "PostgreSQL is unavailable" })).toBeVisible();
+  await expect(page.getByText("History unavailable", { exact: true })).toBeVisible();
+  await expect(page.getByText("Visitor records from this browser", { exact: false })).toHaveCount(0);
+  await expect(page.getByText("No check-in recorded for this date.", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("You have not saved any check-ins in this range yet.", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("tabpanel")).toHaveCount(0);
+  await page.getByRole("button", { name: "Maya (Synthetic Demo)" }).click();
+  await expect(page.getByText("38 / 42")).toBeVisible();
 });

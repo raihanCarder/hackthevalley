@@ -64,18 +64,14 @@ All targets are at least 44 px with a visible 3 px focus outline.
 
 ## Verification (task 2.8)
 
-Measured 2026-10-17 on the development machine: MacBook Pro, Apple M5 Pro (20-core GPU), 64 GB, macOS 26.4, 3024x1964 Retina, Node 24.21.0, Chromium 156 (Playwright headless shell). **It has not been confirmed that this is the demo laptop; re-run the measurement below on the demo machine before judging.**
+The current acceptance machine reports **MacBook Air (MacBookAir10,1), Apple M1, 8 GB RAM, macOS 26.5.2, Node 22.16.0**. The previous M5 Pro/64 GB device claim is superseded by this direct hardware check. **The user has not confirmed this is the demo laptop, so task 2.8 remains open.**
 
-- **Frame rate:** painting continuously for 4 s with animated effects (all four layers present), 1440x900 at DPR 2, Metal GPU (`ANGLE Metal Renderer: Apple M5 Pro`): mean 60 FPS, p95 frame 16.7 ms, worst 16.8 ms (vsync-capped). With SwiftShader software WebGL: also 60 FPS. The browser test asserts at least 30 rendered FPS from the canvas `data-fps` value.
-- **CPU costs** (Node, same machine): atlas build about 40 ms once per mount; region reduction about 7 ms per committed stroke; one stamp under 0.1 ms; PNG encode of four sparse layers about 8 ms, about 2 KB each.
-- **Cleanup:** unmount cancels the animation frame, removes every listener (including the reduced-motion query), and disposes geometry (body, ring, 34 raycast islands), materials, the paint texture, controls, and the renderer. `globalThis.__painJournalBodyScenes` counts created/live/disposed scenes and live handles. The browser test navigates away and back three times and checks one live scene, zero after leaving, and painting after remount.
-- **Commands:** `npm test` (29 passing, including 21 body cases), `npm run typecheck`, `npm run build`, and `npm run test:browser`. All 16 browser checks pass against both `next dev` and `next start`.
+- **Frame rate:** the Chromium browser check measures rendered FPS while painting with animated effects and asserts at least 30 FPS. The final observed value and browser configuration are recorded in [integration verification](integration-verification.md). This is a headless software-WebGL check, not a claim about another demo device or a manually measured Metal renderer.
+- **Cleanup:** unmount cancels animation frames, removes listeners, and disposes scene resources. The remount check navigates three times; the editor handle leaves the live set, history has exactly one distinct read-only scene, and returning to check-in has exactly one working editor. Saved maps continue to paint after remount.
+- **Commands:** `npm test`, `npm run typecheck`, `npm run build`, and `npm run test:browser`. Final aggregate counts are in the integration record.
 
 Limits: the atlas is 512 px, about 5–10 mm per texel, so the smallest brush (2 cm radius) is the finest mark. Painting needs WebGL. Keyboard users can rotate and select every control, but painting itself requires a pointer. Measurements are map coverage, not anatomy.
 
-## Requested shared-file changes (owner B)
+## Consumer integration
 
-- `src/app/page.tsx`: the instruction rail still says painting "arrives in the next milestones" and repeats the legend that is now in the toolbar. Replace it with the date/note/save panel and pass `handleRef`/`onChange` to `BodyWorkbench`.
-- `src/domain/contracts.ts`: optionally move `MAX_ENTRY_PAYLOAD_BYTES`, `MAX_NOTE_CHARACTERS`, and `REGION_LABELS` into shared contracts. The `parseDailyEntry` comment should point to task 2.7 / `src/body/map-codec.ts` for decoding and limits.
-- Test runner: body cases live in `tests/body/*.cases.ts`, loaded by `tests/body.test.ts`, so `tests/*.test.ts` needs no change. If the glob is widened later, keep `*.cases.ts` out of it.
-- `README.md`: link this document.
+The check-in page now passes its handle and edit notifications through the journal bridge. The journal uses the shared map decoder/reducer; history and report use BodyViewer. Feature cases remain in `tests/body/*.cases.ts`, loaded by `tests/body.test.ts`; the runner also discovers nested `*.test.ts` files without running the cases twice. The README links this interface documentation.

@@ -9,7 +9,7 @@ export default function HistoryPage() {
           <h1>A picture over time.</h1>
         </div>
         <p>
-          Scrub through daily records, replay pain progression, and analyze regional trends without external dependencies.
+          Replay saved maps, explore regional trends, and compare recorded changes over time.
         </p>
       </header>
 
