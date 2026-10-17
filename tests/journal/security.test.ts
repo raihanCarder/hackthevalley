@@ -22,6 +22,15 @@ test("mutations require the same origin and Maya can never be a mutation target"
   assert.throws(() => assertVisitorMutation(request("http://localhost:3000", "http://localhost:3000/api/entries/2026-10-17?profile=maya")), { code: "forbidden" });
   assert.throws(() => requestedProfile(new URL("http://localhost/?profile=another-session")), { code: "forbidden" });
 });
+test("same-origin uses the host the browser addressed when the server normalizes its URL", () => {
+  // next dev reports http://localhost:3000 even when the page was opened at http://127.0.0.1:3000.
+  const at = (origin: string, host: string) => new Request("http://localhost:3000/api/session", { method: "POST", headers: { Origin: origin, Host: host } });
+  assert.doesNotThrow(() => assertSameOrigin(at("http://127.0.0.1:3000", "127.0.0.1:3000")));
+  assert.throws(() => assertSameOrigin(at("http://localhost:3000", "127.0.0.1:3000")), { code: "forbidden" });
+  assert.throws(() => assertSameOrigin(at("https://elsewhere.test", "127.0.0.1:3000")), { code: "forbidden" });
+  const crossSite = new Request("http://localhost:3000/api/session", { method: "POST", headers: { Origin: "http://localhost:3000", "Sec-Fetch-Site": "cross-site" } });
+  assert.throws(() => assertSameOrigin(crossSite), { code: "forbidden" });
+});
 test("wire validation rejects malformed JSON, wrong content type, and oversized chunked bodies", async () => {
   await assert.rejects(readCheckInBody(new Request("http://localhost", { method: "PUT", body: "{}" })), { code: "invalid" });
   await assert.rejects(readCheckInBody(new Request("http://localhost", { method: "PUT", headers: { "Content-Type": "application/json" }, body: "{" })), { code: "invalid" });

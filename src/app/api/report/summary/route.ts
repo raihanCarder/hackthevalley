@@ -1,4 +1,6 @@
 import { MAYA_ENTRIES, MAYA_PROFILE } from "@/demo/maya";
+import { JournalError } from "@/journal/repository";
+import { assertSameOrigin } from "@/journal/server/security";
 import { geminiConfig } from "@/report/server/config";
 import { prepareSummary, ReportRequestError } from "@/report/summary-service";
 
@@ -13,23 +15,10 @@ export async function POST(request: Request) {
     const summary = await prepareSummary(body, { gemini: geminiConfig(), synthetic: { profileId: MAYA_PROFILE.id, entries: MAYA_ENTRIES } });
     return respond({ summary }, 200);
   } catch (error) {
+    // The summary action may send notes to Gemini, so it must come from this app's own page.
+    if (error instanceof JournalError && error.code === "forbidden") return respond({ error: { code: "forbidden", message: "Summaries can only be requested from the appointment report page." } }, 403);
     if (error instanceof ReportRequestError) return respond({ error: { code: error.code, message: error.message } }, error.code === "forbidden" ? 403 : error.code === "empty" ? 422 : 400);
     return respond({ error: { code: "unavailable", message: "The summary could not be prepared. The report's recorded observations are unchanged." } }, 503);
-  }
-}
-
-/**
- * The summary action may send notes to Gemini, so it must come from this app's own page. The expected origin is
- * APP_ORIGIN when set, otherwise the origin the browser addressed (Host header), which stays correct when the dev
- * server is reached as 127.0.0.1 but normalizes its own request URL to localhost.
- */
-function assertSameOrigin(request: Request) {
-  const origin = request.headers.get("origin");
-  const host = request.headers.get("host");
-  const protocol = new URL(request.url).protocol;
-  const expected = process.env.APP_ORIGIN ?? (host ? `${protocol}//${host}` : new URL(request.url).origin);
-  if (!origin || origin !== expected || request.headers.get("sec-fetch-site") === "cross-site") {
-    throw new ReportRequestError("forbidden", "Summaries can only be requested from the appointment report page.");
   }
 }
 
