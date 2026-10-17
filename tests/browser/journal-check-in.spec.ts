@@ -113,6 +113,7 @@ test("API rejects cross-origin writes, Maya writes, invalid dates, and unbounded
   const status = await request.get("/api/status");
   const body = await status.json();
   expect(body.services.bodyMaps).toBe("Connected");
+  expect(body.services.maya).toBe("Connected; synthetic/read-only");
   expect(JSON.stringify(body)).not.toContain("DATABASE_URL");
   expect(JSON.stringify(body)).not.toContain("GEMINI_API_KEY");
 });

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import type { BodyHandle } from "../body/body-handle";
-import { createEditorBridge } from "./body-editor-bridge";
+import { createEditorBridge } from "./editor";
 import { BodyWorkbench } from "../body/body-workbench";
 import { PAIN_LABELS, PAIN_TYPES } from "../domain/contracts";
 import { CheckInPanel } from "./check-in-panel";

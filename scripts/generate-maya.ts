@@ -102,4 +102,6 @@ async function main() {
   writeFileSync("src/demo/maya-data.json", JSON.stringify(entries, null, 2) + "\n");
   console.log("Generated 42 check-ins through PaintEngine, shared reducer and lossless codec (38 aching, 4 empty; thigh Oct 3, calf Oct 10).");
 }
-void main();
+if (process.argv[1]?.endsWith("generate-maya.ts")) {
+  main().catch(error => { console.error(error); process.exitCode = 1; });
+}

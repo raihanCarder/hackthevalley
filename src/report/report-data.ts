@@ -9,15 +9,16 @@ import type { ReportProfileKey } from "./summary-service";
 export type { ReportProfileKey };
 export interface LoadedEntries { profileId: string; entries: DailyEntry[]; storage: JournalStorage | "synthetic" }
 export class StorageNotChosen extends Error {
-  constructor() { super("Choose where your check-ins are saved on the Check-in page first."); this.name = "StorageNotChosen"; }
+  constructor() { super("This browser is blocking storage, so saved check-ins can’t be read here. Choose a save location on the Check-in page."); this.name = "StorageNotChosen"; }
 }
 
-/** The save location chosen on the check-in page (owner B's preference). The report never picks a store itself. */
+/**
+ * The save location the check-in page uses: PostgreSQL only when chosen there, otherwise this browser (IndexedDB),
+ * matching the check-in page's default. When browser preferences are blocked the check-in page asks, so this does too.
+ */
 export function chosenStorage(): JournalStorage | null {
-  try {
-    const saved = window.localStorage.getItem("pain-journal-storage");
-    return saved === "indexeddb" || saved === "postgresql" ? saved : null;
-  } catch { return null; }
+  try { return window.localStorage.getItem("pain-journal-storage") === "postgresql" ? "postgresql" : "indexeddb"; }
+  catch { return null; }
 }
 
 /**

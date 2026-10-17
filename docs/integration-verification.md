@@ -12,10 +12,10 @@ Browser checks use Playwright Chromium with `--use-angle=swiftshader --enable-we
 
 | Check | Observed result |
 | --- | --- |
-| `npm test` | 76 passing; zero failures, cancellations, or skips |
+| `npm test` | 80 passing; zero failures, cancellations, or skips |
 | `npm run typecheck` | Pass |
 | `npm run build` | Pass; all application routes built |
-| Full production browser suite, no database or Gemini configuration | 39 passing; zero unexpected, flaky, or skipped tests |
+| Full production browser suite, no database or Gemini configuration | 41 passing; zero unexpected, flaky, or skipped tests |
 | Real PostgreSQL 17.11 migration and transaction test | Pass using real PNG maps and the shared reducer; replacement, rollback, concurrent upserts, missing/empty days, and profile isolation |
 | PostgreSQL history and assembled rehearsal | 11 passing, including all 42 Maya dates and desktop/touch visitor flows |
 | Final PostgreSQL draft/date regression | 4 passing: desktop, actual touch at 390px, rejected browser write, server rejection/retry and separate-session isolation |
@@ -23,7 +23,7 @@ Browser checks use Playwright Chromium with `--use-angle=swiftshader --enable-we
 | Maya regeneration | Reproducible through shared PaintEngine, atlas, reducer, and lossless encoder; 42 decoded maps agree with stored observations |
 | `openspec validate pain-map-journal --strict` | Pass |
 
-Production checks ran at `http://127.0.0.1:3014`. The earlier touch-selection failure was corrected: initializing a playback controller after metadata arrives no longer emits an older selected date. All 39 final production checks pass after that fix.
+Production checks ran at `http://127.0.0.1:3014`. The earlier touch-selection failure was corrected: initializing a playback controller after metadata arrives no longer emits an older selected date. All 41 production checks pass after merging main at `8c0b885`, including main’s two additional end-to-end integration checks. The merged build, TypeScript, all 80 unit tests, and strict OpenSpec validation also pass.
 
 ## What the assembled checks establish
 
@@ -64,4 +64,4 @@ The fake-provider commands are in [report.md](report.md). `PAIN_JOURNAL_DIST_DIR
 1. **Task 2.8:** confirm the current MacBook Air is the demo laptop. If another laptop will be used, repeat the body FPS/remount checks on that device and record its actual model, browser, settings, and observed FPS.
 2. **Task 6.3, live Gemini portion:** add `GEMINI_API_KEY` and `GEMINI_MODEL` to `.env.local`, restart the app, and submit Maya's report using Organize with Gemini. Record the actual provider/model and validated result. The key stays server-only and must not be pasted into reports, documentation, or logs. Task 5.6 is complete because it explicitly permits recording unavailable credentials; task 6.3 stays open until its included live path is exercised.
 
-The implementation is reviewed on `feat/pain-map-journal-task-6`. The OpenSpec change remains unarchived; merging and deployment are outside this request.
+The implementation is reviewed on `fix/pain-map-journal-task-6-conflicts`, which merges main at `8c0b885` and replaces the original integration branch. The reconciliation preserves main’s shared synthetic source, origin checks, and regression tests, and consolidates the editor bridge. The OpenSpec change remains unarchived; merging and deployment are outside this request.
