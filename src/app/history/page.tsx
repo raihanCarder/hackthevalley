@@ -1,5 +1,19 @@
-import Link from "next/link";
+import { HistoryView } from "@/timeline/history-view";
 
 export default function HistoryPage() {
-  return <div className="placeholder-page"><p className="section-label">History</p><h1>A picture over time.</h1><p>This screen will bring your recorded maps together with playback, regional trends, and date comparisons.</p><p>History is planned for milestone 4. There are no saved check-ins in this foundation preview.</p><Link className="text-link" href="/">Explore the body map</Link></div>;
+  return (
+    <div className="history-page">
+      <header className="page-heading">
+        <div>
+          <p className="section-label">History &amp; Analysis</p>
+          <h1>A picture over time.</h1>
+        </div>
+        <p>
+          Scrub through daily records, replay pain progression, and analyze regional trends without external dependencies.
+        </p>
+      </header>
+
+      <HistoryView />
+    </div>
+  );
 }
