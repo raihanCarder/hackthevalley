@@ -1,0 +1,11 @@
+# Format: type(scope): short description
+#
+# Examples:
+# feat(auth): add login validation
+# fix(api): handle missing user response
+# refactor(ui): simplify navigation
+#
+# Types: feat, fix, docs, refactor, test, chore
+#
+# Explain the reason for the change in the body
+# when additional context is useful.
