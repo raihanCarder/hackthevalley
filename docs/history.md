@@ -15,7 +15,8 @@ The history feature powers the second core selling point of the pain journal: **
 - `src/timeline/history-view.tsx`: Unified client component combining profile switching, calendar scrubber, visual stage, and analysis rail.
 - `src/timeline/timeline.module.css`: Feature-local CSS module adhering to the design system and `frontend-design` principles.
 - `src/demo/maya.ts` & `src/demo/maya-data.json`: Immutable synthetic patient dataset (42 days, Sept 6–Oct 17, 2026).
-- `scripts/generate-maya.ts`: Reproducible script generating Maya's maps and observations through the standard reduction pipeline.
+- `scripts/generate-maya.ts`: Reproducible script that paints Maya's maps with the body feature's paint engine at real surface points (lower back, front-outer left thigh, then left calf), encodes them with the shared lossless codec, and measures them with the shared region reducer. `tests/demo.test.ts` checks that every mark lies on the body, that stored observations equal a re-measurement of the maps, and that regeneration reproduces the checked-in fixture.
+- 3D playback uses the read-only `BodyViewer` with the selected day's decoded maps; a missing day shows an explicit no-check-in message rather than a blank body.
 
 ## Invariants and Behavioral Rules
 
