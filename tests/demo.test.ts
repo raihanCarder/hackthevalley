@@ -110,3 +110,45 @@ test("Maya notes reflect the sitting and partial-relief narrative", () => {
   assert.ok(notes.includes("sitting") || notes.includes("seated") || notes.includes("desk"));
   assert.ok(notes.includes("relief") || notes.includes("helped") || notes.includes("walk"));
 });
+
+test("Maya's saved maps go through the body pipeline: paint lies on the body and re-measures to the stored observations", async () => {
+  const { decodePaintSnapshot, getBodyAtlas, reduceRegions, PRESENCE_THRESHOLD } = await import("../src/body/map-utils");
+  const atlas = getBodyAtlas();
+  for (const entry of MAYA_ENTRIES) {
+    const layers = await decodePaintSnapshot(entry.maps);
+    for (const layer of Object.values(layers)) {
+      for (let texel = 0; texel < layer.length; texel++) {
+        if (layer[texel] >= PRESENCE_THRESHOLD) assert.ok(atlas.islandOf[texel] >= 0, `${entry.localDate}: paint outside the body at texel ${texel}`);
+      }
+    }
+    assert.deepEqual(reduceRegions(layers, atlas), entry.observations, `${entry.localDate}: stored observations match the shared reducer`);
+  }
+});
+
+test("regenerating Maya reproduces the checked-in fixture", async () => {
+  const { generateMayaEntries } = await import("../scripts/generate-maya");
+  const { decodePaintSnapshot } = await import("../src/body/map-utils");
+  const generated = await generateMayaEntries();
+  assert.equal(generated.length, MAYA_ENTRIES.length);
+  for (const [index, entry] of generated.entries()) {
+    const saved = MAYA_ENTRIES[index];
+    assert.deepEqual({ ...entry, maps: undefined }, { ...saved, maps: undefined });
+    assert.deepEqual(await decodePaintSnapshot(entry.maps), await decodePaintSnapshot(saved.maps), `${entry.localDate}: identical maps`);
+  }
+});
+
+test("Maya's journal source is read-only, bounded, and returns detached copies", async () => {
+  const { createMayaSource } = await import("../src/demo/maya-source");
+  const source = createMayaSource();
+  const list = await source.list("maya", { from: parseLocalDate("2026-10-01"), to: parseLocalDate("2026-10-17") });
+  assert.equal(list.length, 17);
+  assert.ok(list.every(summary => !("maps" in summary) && !("note" in summary)));
+  const day = (await source.read("maya", parseLocalDate("2026-10-10")))!;
+  day.observations.length = 0;
+  assert.ok((await source.read("maya", parseLocalDate("2026-10-10")))!.observations.length > 0, "fixture is not mutated");
+  assert.equal(await source.read("maya", parseLocalDate("2026-08-01")), null);
+  assert.equal((await source.previous("maya", parseLocalDate("2026-09-07")))!.localDate, "2026-09-06");
+  assert.equal(await source.previous("maya", parseLocalDate("2026-09-06")), null);
+  await assert.rejects(source.read("visitor", parseLocalDate("2026-10-10")), { code: "forbidden" });
+  assert.ok(!("upsert" in source));
+});

@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { BodyWorkbench } from "../body/body-workbench";
+import type { BodyHandle } from "../body/body-handle";
 import { PAIN_LABELS, PAIN_TYPES } from "../domain/contracts";
 import { CheckInPanel } from "./check-in-panel";
+import { createEditorBridge } from "./editor";
 import { IndexedDbJournal, localVisitorId } from "./indexeddb";
 import { HttpJournal } from "./http";
 import { journalMapServices, syntheticJournalSource } from "./integrations";
@@ -19,6 +21,11 @@ export function CheckInWorkspace() {
   const [repository, setRepository] = useState<JournalRepository | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [services, setServices] = useState<ServiceStatuses>({ postgresql: "Checking…", gemini: "Checking…" });
+  const bodyHandle = useRef<BodyHandle | null>(null);
+  const [editorReady, setEditorReady] = useState(false);
+  const editor = useMemo(() => createEditorBridge(() => bodyHandle.current), []);
+  // The workbench assigns its handle after mounting; enable map actions once it exists.
+  useEffect(() => { setEditorReady(bodyHandle.current !== null); }, []);
 
   useEffect(() => {
     try {
@@ -69,7 +76,7 @@ export function CheckInWorkspace() {
       <dl className={styles.services} aria-label="Service status"><div><dt>PostgreSQL:</dt><dd>{services.postgresql}</dd></div><div><dt>Gemini:</dt><dd>{services.gemini}</dd></div></dl>
     </div>
     {preferenceError && <p className={styles.error} role="alert">{preferenceError}</p>}
-    <div className="check-in-layout"><BodyWorkbench />{storage ? <CheckInPanel storage={storage} repository={repository?.storage === storage ? repository : null} connectionError={error} onBusyChange={setBusy} /> : <aside className={styles.panel}>Choose where to save your check-ins.</aside>}</div>
+    <div className="check-in-layout"><BodyWorkbench handleRef={bodyHandle} />{storage ? <CheckInPanel storage={storage} repository={repository?.storage === storage ? repository : null} editor={editorReady ? editor : undefined} connectionError={error} onBusyChange={setBusy} /> : <aside className={styles.panel}>Choose where to save your check-ins.</aside>}</div>
     <div className={styles.sensations} aria-label="Pain sensation legend"><ul>{PAIN_TYPES.map(type => <li key={type}><span className={`sensation-dot ${type}`} aria-hidden="true" />{PAIN_LABELS[type]}</li>)}</ul></div>
   </>;
 }

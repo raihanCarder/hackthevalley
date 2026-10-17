@@ -205,8 +205,8 @@ test.describe("touch", () => {
     const at = await projector(page);
     const client = await page.context().newCDPSession(page);
     const [x0, y0] = await toScreen(page, at(.12, .82, .1)), [x1, y1] = await toScreen(page, at(.12, .6, .09));
-    const scroll = await page.evaluate(() => window.scrollY);
-    const point = (x: number, y: number) => [{ x, y: y - scroll, id: 1 }];
+    // toScreen returns viewport coordinates, which is what CDP touch events expect; no scroll adjustment.
+    const point = (x: number, y: number) => [{ x, y, id: 1 }];
     await client.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: point(x0, y0) });
     for (let i = 1; i <= 10; i++) await client.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: point(x0 + (x1 - x0) * i / 10, y0 + (y1 - y0) * i / 10) });
     await client.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });

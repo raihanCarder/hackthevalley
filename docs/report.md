@@ -6,7 +6,7 @@ Owns `src/report/**`, `src/app/report/**`, `src/app/api/report/**`, `tests/repor
 | --- | --- |
 | Counts, presence, first/last dates, comparisons, per-day trend points | C's `computeReportEvidence`, `compareDates`, `computeRegionTrend` (`src/timeline/analysis.ts`) |
 | Maya's records | C's immutable `MAYA_ENTRIES` (the same fixture the timeline plays) |
-| Visitor records | B's repository: `IndexedDbJournal` or `HttpJournal`, whichever store was chosen on the check-in page; `list` then `read` |
+| Visitor records | B's repository: `IndexedDbJournal` or `HttpJournal`, the store the check-in page uses; `list` then `read` |
 | Map decoding, validation, re-measurement | A's `@/body/map-utils` |
 | Front/back captures | A's read-only `BodyViewer` handle `capture({ layers })` |
 
@@ -75,7 +75,7 @@ Gemini is optional (the first-increment scope decision). It is enabled only when
 - **No configuration, timeout, HTTP or network error, blocked, truncated or non-JSON response, or a plan that fails validation:** the factual summary, with the specific reason and "Try Gemini again". Provider error bodies are never shown.
 - A fallback is never labeled as Gemini output.
 
-The summary route requires a same-origin `Origin` header and rejects `Sec-Fetch-Site: cross-site`. The expected origin is `APP_ORIGIN` when set, otherwise the origin the browser addressed (`Host`). This keeps `next dev` working when it is reached as 127.0.0.1, because the server's own request URL is normalized to localhost there. Request bodies are capped at 16 MiB.
+The summary route uses the journal's shared same-origin check (`assertSameOrigin` in `src/journal/server/security.ts`): it requires an `Origin` matching `APP_ORIGIN` when set, otherwise the origin the browser addressed (`Host`), and rejects `Sec-Fetch-Site: cross-site`. Request bodies are capped at 16 MiB.
 
 ## Printing
 
@@ -96,7 +96,7 @@ Run on macOS (Apple M5 Pro) with Node 24.21.0 and Chromium 156.
 - **`npx playwright test tests/browser/report-appointment.spec.ts`: 6 passing** against both `next dev` and a production build. Covered:
   - Maya content and labels, plus captures as PNG data URLs.
   - Range recomputation and range-error alert.
-  - Visitor "not connected" and empty states.
+  - Visitor empty state.
   - Print media hiding the chrome, with a one-page A4 and Letter PDF.
   - API status, factual response, 422 for an empty range, 403 cross-origin.
   - Phone layout without overflow.
@@ -107,6 +107,5 @@ Run on macOS (Apple M5 Pro) with Node 24.21.0 and Chromium 156.
 
 ## Known dependencies and limits
 
-- **Maya's composite renders blank.** `scripts/generate-maya.ts` (owner C) writes paint rows at `v * 512` instead of `(1 - v) * 512`, so every mark lands outside the body's valid atlas texels. Re-measuring Maya's maps with the shared reducer yields no observations, and the 3D body shows no marks. With the rows flipped, measurements closely match the stored observations. The report keeps using the stored observations, exactly like the timeline, so text and table are consistent; the captures will show paint once C regenerates the fixture with the documented row convention.
-- **Visitor reports depend on B's integration.** They work through B's repository, but saving real maps requires B to connect A's map services in `src/journal/integrations.ts`. Until then a visitor has no saved check-ins, and the report correctly shows its empty state. The report reads B's store preference key `pain-journal-storage` without changing it.
+- **Visitor reports use the check-in page's store.** They read the store chosen on the check-in page (key `pain-journal-storage`; IndexedDB when nothing was chosen, the same default as the check-in page) and never change it. When browser storage is blocked, the report asks the person to choose a save location on the Check-in page.
 - **The PDF test is Chromium-only.** The single-page result was measured in Chromium; other browsers' print engines may paginate differently.

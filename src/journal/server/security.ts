@@ -12,9 +12,19 @@ export function hashToken(token: string): Buffer {
 export function validToken(token: string | undefined): token is string {
   return typeof token === "string" && /^[a-f0-9]{64}$/.test(token);
 }
+/**
+ * APP_ORIGIN when set; otherwise the origin the browser addressed (Host header). The request URL alone is not enough:
+ * `next dev` normalizes it to localhost even when the page was served from 127.0.0.1.
+ */
+export function expectedOrigin(request: Request): string {
+  if (process.env.APP_ORIGIN) return process.env.APP_ORIGIN;
+  const url = new URL(request.url);
+  const host = request.headers.get("host");
+  return host ? `${url.protocol}//${host}` : url.origin;
+}
 export function assertSameOrigin(request: Request): void {
   const origin = request.headers.get("origin");
-  const expected = process.env.APP_ORIGIN ?? new URL(request.url).origin;
+  const expected = expectedOrigin(request);
   if (origin !== expected || request.headers.get("sec-fetch-site") === "cross-site") {
     throw new JournalError("forbidden", "This change must come from the pain journal page.");
   }

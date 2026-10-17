@@ -146,7 +146,15 @@ export function formatDisplayDate(dateStr: string): string {
   return `${dayNames[d.getUTCDay()]}, ${months[month - 1]} ${day}, ${year}`;
 }
 
+const TORSO_NAMES: Partial<Record<RegionId, string>> = {
+  "front-upper-torso": "Chest", "front-lower-torso": "Abdomen",
+  "back-upper-torso": "Upper Back", "back-lower-torso": "Lower Back", pelvis: "Hips and Pelvis",
+};
+
+/** Display name such as "Left Thigh" or "Lower Back"; left/right are the patient's own sides. */
 export function formatRegionName(regionId: RegionId): string {
+  const torso = TORSO_NAMES[regionId];
+  if (torso) return torso;
   return regionId
     .split("-")
     .map(word => word[0].toUpperCase() + word.slice(1))

@@ -48,11 +48,8 @@ test("changing the range recomputes counts from recorded days", async ({ page })
 });
 
 test("visitor reports need saved check-ins and never invent content for an empty range", async ({ page }) => {
+  // With no saved preference the report reads the same default store as the check-in page (this browser).
   await page.goto("/report");
-  await page.getByRole("button", { name: "Your check-ins" }).click();
-  await expect(page.getByRole("heading", { name: "Your check-ins aren’t connected yet" })).toBeVisible();
-  await page.evaluate(() => window.localStorage.setItem("pain-journal-storage", "indexeddb"));
-  await page.reload();
   await page.getByRole("button", { name: "Your check-ins" }).click();
   await expect(page.getByRole("heading", { name: /No saved check-ins between/ })).toBeVisible();
   await expect(page.getByRole("link", { name: "Go to the check-in" })).toHaveAttribute("href", "/");

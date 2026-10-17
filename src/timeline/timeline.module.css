@@ -298,8 +298,15 @@
 }
 
 .canvasStage {
-  height: 440px;
   position: relative;
+}
+
+.viewerNotice {
+  margin: 0;
+  padding: 10px 16px;
+  font-size: 14px;
+  color: var(--muted);
+  background: var(--stage);
 }
 
 /* 2D Body Diagram */
@@ -673,7 +680,7 @@
   .statGrid {
     grid-template-columns: 1fr;
   }
-  .canvasStage, .diagramStage {
+  .diagramStage {
     height: 380px;
   }
 }

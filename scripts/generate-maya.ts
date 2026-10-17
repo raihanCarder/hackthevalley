@@ -1,192 +1,91 @@
 import { writeFileSync } from "node:fs";
-import { deflateSync, crc32 } from "node:zlib";
-import { generateMannequin, type BodyIsland } from "../src/body/mannequin";
 import {
   BODY_MAP_VERSION,
-  MAP_SIZE,
-  PAIN_TYPES,
   SCHEMA_VERSION,
   parseDailyEntry,
   type DailyEntry,
   type LocalDate,
   type PainType,
   type RegionId,
-  type RegionalObservation,
 } from "../src/domain/contracts";
+import {
+  createEmptyLayers,
+  encodePaintSnapshot,
+  getBodyAtlas,
+  intensityToByte,
+  PaintEngine,
+  reduceRegions,
+  type PaintLayers,
+  type SurfaceHit,
+} from "../src/body/map-utils";
 
 /**
- * Encodes a 512x512 8-bit grayscale buffer to a valid base64-encoded PNG.
+ * Maya's maps are painted through the same body pipeline as a visitor's check-in (owner A's paint engine, atlas,
+ * lossless encoder, and region reducer), so saved maps, 3D playback, report composites, and observations agree.
+ * Fully deterministic: fixed dates, fixed stroke paths, and no randomness.
  */
-export function encodeGrayscalePng(buffer: Uint8Array, width = MAP_SIZE, height = MAP_SIZE): string {
-  const rawScanlines = Buffer.alloc(height * (1 + width));
-  for (let y = 0; y < height; y++) {
-    rawScanlines[y * (1 + width)] = 0; // Filter: None
-    for (let x = 0; x < width; x++) {
-      rawScanlines[y * (1 + width) + 1 + x] = buffer[y * width + x];
+const atlas = getBodyAtlas();
+type Point = [number, number, number];
+
+/** The surface texel of a region/side closest to a model-space point (+X patient-left, +Z front), as a surface hit. */
+function surfaceAt(regionId: RegionId, side: "front" | "back", target: Point): SurfaceHit {
+  let best = -1, bestDistance = Infinity;
+  for (const island of atlas.islands) {
+    if (island.regionId !== regionId || island.side !== side) continue;
+    for (const texel of atlas.islandTexels[island.id]) {
+      const dx = atlas.position[texel * 3] - target[0], dy = atlas.position[texel * 3 + 1] - target[1], dz = atlas.position[texel * 3 + 2] - target[2];
+      const distance = dx * dx + dy * dy + dz * dz;
+      if (distance < bestDistance) { bestDistance = distance; best = texel; }
     }
   }
-
-  const idatCompressed = deflateSync(rawScanlines);
-
-  const makeChunk = (type: string, data: Buffer): Buffer => {
-    const len = Buffer.alloc(4);
-    len.writeUInt32BE(data.length, 0);
-    const typeBuf = Buffer.from(type, "ascii");
-    const crc = Buffer.alloc(4);
-    const calculatedCrc = crc32(Buffer.concat([typeBuf, data]));
-    crc.writeUInt32BE(calculatedCrc, 0);
-    return Buffer.concat([len, typeBuf, data, crc]);
-  };
-
-  const ihdr = Buffer.alloc(13);
-  ihdr.writeUInt32BE(width, 0);
-  ihdr.writeUInt32BE(height, 4);
-  ihdr[8] = 8; // 8-bit depth
-  ihdr[9] = 0; // Grayscale
-  ihdr[10] = 0; // Deflate
-  ihdr[11] = 0; // Default filter
-  ihdr[12] = 0; // Non-interlaced
-
-  const png = Buffer.concat([
-    Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
-    makeChunk("IHDR", ihdr),
-    makeChunk("IDAT", idatCompressed),
-    makeChunk("IEND", Buffer.alloc(0)),
-  ]);
-
-  return png.toString("base64");
+  const at = (array: Float32Array): Point => [array[best * 3], array[best * 3 + 1], array[best * 3 + 2]];
+  return { point: at(atlas.position), normal: at(atlas.normal), island: atlas.islandOf[best] };
 }
 
-const mannequin = generateMannequin();
-
-// Precompute valid texel masks per region based on mannequin islands
-interface RegionAtlasInfo {
-  islands: BodyIsland[];
-  pixelCoordinates: Array<[number, number]>;
-  center: [number, number];
-}
-
-const regionAtlases = new Map<RegionId, RegionAtlasInfo>();
-
-for (const island of mannequin.islands) {
-  let info = regionAtlases.get(island.regionId);
-  if (!info) {
-    info = { islands: [], pixelCoordinates: [], center: [0, 0] };
-    regionAtlases.set(island.regionId, info);
-  }
-  info.islands.push(island);
-
-  const [u0, v0, u1, v1] = island.bounds;
-  const xMin = Math.round(u0 * MAP_SIZE);
-  const xMax = Math.round(u1 * MAP_SIZE);
-  const yMin = Math.round(v0 * MAP_SIZE);
-  const yMax = Math.round(v1 * MAP_SIZE);
-
-  for (let y = yMin; y < yMax; y++) {
-    for (let x = xMin; x < xMax; x++) {
-      info.pixelCoordinates.push([x, y]);
+/** One brush stroke through surface points, sampled densely like pointer events. */
+function stroke(engine: PaintEngine, layer: PainType, intensity: number, radius: number, regionId: RegionId, side: "front" | "back", path: Point[]) {
+  engine.beginStroke({ layer, tool: "brush", intensity: intensityToByte(intensity), radius });
+  for (let segment = 0; segment < path.length - 1; segment++) {
+    const [from, to] = [path[segment], path[segment + 1]];
+    for (let step = 0; step <= 8; step++) {
+      const t = step / 8;
+      engine.strokeTo(surfaceAt(regionId, side, [0, 1, 2].map(axis => from[axis] + (to[axis] - from[axis]) * t) as Point));
     }
   }
+  engine.endStroke();
 }
 
-// Compute centers
-for (const [, info] of regionAtlases) {
-  if (info.pixelCoordinates.length > 0) {
-    let sumX = 0;
-    let sumY = 0;
-    for (const [x, y] of info.pixelCoordinates) {
-      sumX += x;
-      sumY += y;
-    }
-    info.center = [
-      Math.round(sumX / info.pixelCoordinates.length),
-      Math.round(sumY / info.pixelCoordinates.length),
-    ];
+/** The four layers drawn for day `index` (0 = Sept 6). */
+export function mayaLayers(index: number): PaintLayers {
+  const engine = new PaintEngine(atlas, createEmptyLayers());
+  if (index < 4) return engine.snapshot(); // Sept 6–9: explicitly saved empty maps
+  // Lower-back aching on every remaining day, varying gently in intensity and size.
+  const day = index - 4;
+  // A broad ache across the lower back: two passes, spread slightly wider on some days.
+  const ache = 4.2 + 1.2 * Math.sin(day * .45), radius = .07 + .01 * Math.cos(day * .3);
+  stroke(engine, "aching", ache, radius, "back-lower-torso", "back", [[-.13, 1.18, -.12], [0, 1.16, -.145], [.13, 1.18, -.12]]);
+  stroke(engine, "aching", ache, radius, "back-lower-torso", "back", [[-.11, 1.07, -.12], [0, 1.05, -.14], [.11, 1.07, -.12]]);
+  // Left-thigh burning from Oct 3 (index 27) on the front-outer thigh, lengthening toward the knee.
+  if (index >= 27) {
+    const thighDay = index - 27;
+    const bottom = Math.max(.55, .84 - .02 * thighDay);
+    stroke(engine, "burning", 4.5 + Math.min(2, thighDay * .15) + .4 * Math.sin(thighDay), .035 + Math.min(.02, thighDay * .002), "left-thigh", "front",
+      [[.19, .92, .08], [.195, bottom, .07]]);
   }
-}
-
-function stampPain(
-  buffer: Uint8Array,
-  regionId: RegionId,
-  intensityScale10: number,
-  radiusPx: number,
-  offsetX = 0,
-  offsetY = 0
-): void {
-  const info = regionAtlases.get(regionId);
-  if (!info) return;
-
-  const [cx, cy] = info.center;
-  const targetX = cx + offsetX;
-  const targetY = cy + offsetY;
-  const maxByte = Math.min(255, Math.max(0, Math.round((intensityScale10 / 10) * 255)));
-
-  // Stamp only on texels belonging to this region's islands to prevent bleeding
-  for (const [x, y] of info.pixelCoordinates) {
-    const dist = Math.hypot(x - targetX, y - targetY);
-    if (dist <= radiusPx) {
-      const falloff = 1 - dist / radiusPx;
-      const stampVal = Math.round(maxByte * falloff);
-      const idx = y * MAP_SIZE + x;
-      buffer[idx] = Math.max(buffer[idx], stampVal);
-    }
+  // Left-calf burning from Oct 10 (index 34), extending down the front-outer calf.
+  if (index >= 34) {
+    const calfDay = index - 34;
+    stroke(engine, "burning", 4.2 + Math.min(1.8, calfDay * .2), .03 + calfDay * .002, "left-calf", "front",
+      [[.19, .5, .055], [.19, .45 - .025 * calfDay, .05]]);
   }
-}
-
-const PRESENCE_THRESHOLD_BYTE = 13; // 13/255 from design.md Decision 5
-
-function reduceRegion(
-  buffer: Uint8Array,
-  regionId: RegionId,
-  painType: PainType
-): RegionalObservation | null {
-  const info = regionAtlases.get(regionId);
-  if (!info || info.pixelCoordinates.length === 0) return null;
-
-  let maxByte = 0;
-  let sumByte = 0;
-  let coveredCount = 0;
-  const totalValid = info.pixelCoordinates.length;
-
-  for (const [x, y] of info.pixelCoordinates) {
-    const byte = buffer[y * MAP_SIZE + x];
-    if (byte > maxByte) maxByte = byte;
-    sumByte += byte;
-    if (byte >= PRESENCE_THRESHOLD_BYTE) {
-      coveredCount++;
-    }
-  }
-
-  if (coveredCount === 0 && maxByte < PRESENCE_THRESHOLD_BYTE) {
-    return null;
-  }
-
-  const peakIntensity = Number(((maxByte / 255) * 10).toFixed(1));
-  const meanIntensity = Number((((sumByte / 255) * 10) / totalValid).toFixed(2));
-  const mapCoverage = Number((coveredCount / totalValid).toFixed(3));
-
-  return {
-    regionId,
-    painType,
-    peakIntensity,
-    meanIntensity: Math.min(meanIntensity, peakIntensity),
-    mapCoverage,
-  };
+  return engine.snapshot();
 }
 
 // Generate the 42 dates: 2026-09-06 to 2026-10-17
 function getMayaDates(): LocalDate[] {
   const dates: LocalDate[] = [];
-  // September 06 to 30 (25 days)
-  for (let d = 6; d <= 30; d++) {
-    const dayStr = d < 10 ? `0${d}` : `${d}`;
-    dates.push(`2026-09-${dayStr}` as LocalDate);
-  }
-  // October 01 to 17 (17 days)
-  for (let d = 1; d <= 17; d++) {
-    const dayStr = d < 10 ? `0${d}` : `${d}`;
-    dates.push(`2026-10-${dayStr}` as LocalDate);
-  }
+  for (let d = 6; d <= 30; d++) dates.push(`2026-09-${String(d).padStart(2, "0")}` as LocalDate);
+  for (let d = 1; d <= 17; d++) dates.push(`2026-10-${String(d).padStart(2, "0")}` as LocalDate);
   return dates;
 }
 
@@ -235,71 +134,11 @@ const MAYA_NOTES: Record<string, string> = {
   "2026-10-17": "Lower back ache (4/10) with flare of burning pain in left thigh and calf after back-to-back seated meetings. Heat pack and walking offered partial temporary relief.",
 };
 
-export function generateMayaEntries(): DailyEntry[] {
-  const dates = getMayaDates();
+export async function generateMayaEntries(): Promise<DailyEntry[]> {
   const entries: DailyEntry[] = [];
-
-  for (let i = 0; i < dates.length; i++) {
-    const localDate = dates[i];
-    const isEarlyEmpty = i < 4; // Sept 6, 7, 8, 9 (4 days) are explicitly empty check-ins
-
-    // Create 4 independent 512x512 buffers
-    const buffers: Record<PainType, Uint8Array> = {
-      burning: new Uint8Array(MAP_SIZE * MAP_SIZE),
-      sharp: new Uint8Array(MAP_SIZE * MAP_SIZE),
-      aching: new Uint8Array(MAP_SIZE * MAP_SIZE),
-      tingling: new Uint8Array(MAP_SIZE * MAP_SIZE),
-    };
-
-    const observations: RegionalObservation[] = [];
-
-    if (!isEarlyEmpty) {
-      // 1. Lower back aching on all 38 remaining days (Sept 10 - Oct 17)
-      // Slight day-to-day intensity variation (between 3.8 and 6.4)
-      const dayOffset = i - 4;
-      const achingIntensity = 4.2 + 1.2 * Math.sin(dayOffset * 0.45);
-      const achingRadius = 18 + Math.round(3 * Math.cos(dayOffset * 0.3));
-      stampPain(buffers.aching, "back-lower-torso", achingIntensity, achingRadius);
-
-      const backObs = reduceRegion(buffers.aching, "back-lower-torso", "aching");
-      if (backObs) observations.push(backObs);
-
-      // 2. Left thigh burning starting October 3 (index 27)
-      // Sept 6 is idx 0; Sept 30 is idx 24; Oct 1 is idx 25; Oct 2 is idx 26; Oct 3 is idx 27.
-      const isThighBurning = i >= 27;
-      if (isThighBurning) {
-        const thighDay = i - 27;
-        const thighIntensity = 4.5 + Math.min(2.0, thighDay * 0.15) + 0.4 * Math.sin(thighDay);
-        const thighRadius = 14 + Math.min(8, thighDay);
-        stampPain(buffers.burning, "left-thigh", thighIntensity, thighRadius);
-
-        const thighObs = reduceRegion(buffers.burning, "left-thigh", "burning");
-        if (thighObs) observations.push(thighObs);
-      }
-
-      // 3. Left calf burning starting October 10 (index 34)
-      // Oct 10 is idx 34 (7 days before end: idx 34 to 41 = 8 days).
-      const isCalfBurning = i >= 34;
-      if (isCalfBurning) {
-        const calfDay = i - 34;
-        const calfIntensity = 4.2 + Math.min(1.8, calfDay * 0.2);
-        const calfRadius = 12 + Math.min(6, calfDay);
-        stampPain(buffers.burning, "left-calf", calfIntensity, calfRadius);
-
-        const calfObs = reduceRegion(buffers.burning, "left-calf", "burning");
-        if (calfObs) observations.push(calfObs);
-      }
-    }
-
-    // Encode all 4 layers to PNG base64
-    const layers = {
-      burning: encodeGrayscalePng(buffers.burning),
-      sharp: encodeGrayscalePng(buffers.sharp),
-      aching: encodeGrayscalePng(buffers.aching),
-      tingling: encodeGrayscalePng(buffers.tingling),
-    };
-
-    const entry: DailyEntry = {
+  for (const [index, localDate] of getMayaDates().entries()) {
+    const layers = mayaLayers(index);
+    entries.push(parseDailyEntry({
       id: `maya-${localDate}`,
       profileId: "maya-synthetic",
       localDate,
@@ -307,65 +146,34 @@ export function generateMayaEntries(): DailyEntry[] {
       updatedAt: `${localDate}T20:30:00.000Z`,
       schemaVersion: SCHEMA_VERSION,
       bodyMapVersion: BODY_MAP_VERSION,
-      maps: {
-        bodyMapVersion: BODY_MAP_VERSION,
-        width: MAP_SIZE,
-        height: MAP_SIZE,
-        encoding: "png-base64",
-        layers,
-      },
+      maps: await encodePaintSnapshot(layers),
       note: MAYA_NOTES[localDate] || "Check-in recorded.",
-      observations,
-    };
-
-    // Verify contract compliance
-    const validated = parseDailyEntry(entry);
-    entries.push(validated);
+      observations: reduceRegions(layers, atlas),
+    }));
   }
-
   return entries;
 }
 
-// Generate and save
-const mayaEntries = generateMayaEntries();
-
-// Verification counts
-const achingBackDays = mayaEntries.filter(e =>
-  e.observations.some(o => o.regionId === "back-lower-torso" && o.painType === "aching" && o.mapCoverage > 0)
-).length;
-
-const thighBurningFirstDate = mayaEntries.find(e =>
-  e.observations.some(o => o.regionId === "left-thigh" && o.painType === "burning" && o.mapCoverage > 0)
-)?.localDate;
-
-const calfBurningFirstDate = mayaEntries.find(e =>
-  e.observations.some(o => o.regionId === "left-calf" && o.painType === "burning" && o.mapCoverage > 0)
-)?.localDate;
-
-const emptyCheckInDays = mayaEntries.filter(e => e.observations.length === 0).length;
-
-console.log("--- Maya Synthetic Data Verification ---");
-console.log(`Total check-ins: ${mayaEntries.length} (expected 42)`);
-console.log(`Lower-back aching days: ${achingBackDays} (expected 38)`);
-console.log(`Explicit empty check-in days: ${emptyCheckInDays} (expected 4)`);
-console.log(`Left-thigh burning first date: ${thighBurningFirstDate} (expected 2026-10-03)`);
-console.log(`Left-calf burning first date: ${calfBurningFirstDate} (expected 2026-10-10)`);
-
-if (
-  mayaEntries.length !== 42 ||
-  achingBackDays !== 38 ||
-  emptyCheckInDays !== 4 ||
-  thighBurningFirstDate !== "2026-10-03" ||
-  calfBurningFirstDate !== "2026-10-10"
-) {
-  throw new Error("Maya synthetic dataset did not meet required acceptance metrics!");
+function verify(entries: DailyEntry[]) {
+  const daysWith = (regionId: RegionId, painType: PainType) => entries.filter(entry => entry.observations.some(o => o.regionId === regionId && o.painType === painType));
+  const thigh = daysWith("left-thigh", "burning"), calf = daysWith("left-calf", "burning");
+  const checks = {
+    "42 check-ins": entries.length === 42,
+    "38 days of lower-back aching": daysWith("back-lower-torso", "aching").length === 38,
+    "4 explicit empty check-ins": entries.filter(entry => entry.observations.length === 0).length === 4,
+    "left-thigh burning first on Oct 3": thigh[0]?.localDate === "2026-10-03" && thigh.length === 15,
+    "left-calf burning first on Oct 10": calf[0]?.localDate === "2026-10-10" && calf.length === 8,
+    "only the three planned region/sensations": entries.every(entry => entry.observations.every(o => ["back-lower-torso:aching", "left-thigh:burning", "left-calf:burning"].includes(`${o.regionId}:${o.painType}`))),
+  };
+  for (const [name, ok] of Object.entries(checks)) console.log(`${ok ? "ok  " : "FAIL"} ${name}`);
+  if (Object.values(checks).some(ok => !ok)) throw new Error("Maya synthetic dataset did not meet required acceptance metrics!");
 }
 
-// Write JSON dataset
-writeFileSync("src/demo/maya-data.json", JSON.stringify(mayaEntries, null, 2) + "\n");
-
-// Write TypeScript wrapper
-const mayaTsCode = `import type { DailyEntry, LocalDate } from "../domain/contracts";
+async function main() {
+  const mayaEntries = await generateMayaEntries();
+  verify(mayaEntries);
+  writeFileSync("src/demo/maya-data.json", JSON.stringify(mayaEntries, null, 2) + "\n");
+  const mayaTsCode = `import type { DailyEntry, LocalDate } from "../domain/contracts";
 import mayaDataRaw from "./maya-data.json";
 
 export interface SyntheticProfile {
@@ -399,6 +207,8 @@ export function listMayaEntries(): DailyEntry[] {
   return [...MAYA_ENTRIES];
 }
 `;
+  writeFileSync("src/demo/maya.ts", mayaTsCode);
+  console.log("Successfully generated src/demo/maya-data.json and src/demo/maya.ts.");
+}
 
-writeFileSync("src/demo/maya.ts", mayaTsCode);
-console.log("Successfully generated src/demo/maya-data.json and src/demo/maya.ts.");
+if (process.argv[1]?.endsWith("generate-maya.ts")) main().catch(error => { console.error(error); process.exitCode = 1; });
