@@ -1,0 +1,126 @@
+/* Appointment report (owner D). Screen: quiet controls above a white appointment sheet. Print: the sheet only. */
+.page { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; }
+
+.controls { display: flex; flex-wrap: wrap; align-items: end; gap: 14px 24px; padding: 16px 20px; background: var(--stage); border-radius: 16px; }
+.profiles { border: 0; margin: 0; padding: 0; min-width: 0; }
+.profiles legend, .dates label { font-size: 13px; font-weight: 600; margin-bottom: 6px; padding: 0; }
+.profiles > div { display: flex; padding: 3px; border: 1px solid var(--border); border-radius: 11px; background: #f7f9f680; }
+.profiles button { font-size: 14px; }
+.profiles button span { color: var(--muted); font-size: 12px; }
+.profiles button[aria-pressed="true"] { background: var(--accent); color: white; }
+.profiles button[aria-pressed="true"] span { color: #dfe9e2; }
+.dates { display: flex; flex-wrap: wrap; gap: 12px; }
+.dates label { display: grid; gap: 6px; }
+.dates input { min-height: 44px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--foreground); font-size: 14px; }
+.print { margin-left: auto; display: flex; align-items: center; gap: 8px; background: var(--accent); color: white; font-size: 14px; }
+.print:hover { background: #2b4c3b; }
+.print:disabled { opacity: .5; cursor: not-allowed; }
+.fieldError { flex-basis: 100%; margin: 0; color: var(--error); font-size: 14px; }
+
+.notice { padding: 28px; color: var(--muted); }
+.notice button { border: 1px solid var(--border); background: var(--surface); }
+.empty { max-width: 640px; padding: 40px 0 60px; }
+.empty h2 { font: normal 26px/1.25 Georgia, serif; margin: 0 0 12px; }
+.empty p { color: var(--muted); }
+.emptyLink { display: inline-flex; align-items: center; min-height: 44px; text-underline-offset: 5px; }
+
+.sheet { grid-template-columns: minmax(0, 1fr); min-width: 0; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 36px 40px 28px; display: grid; gap: 26px; max-width: 980px; width: 100%; justify-self: center; font-size: 14px; }
+.sheet h3 { font-size: 15px; font-weight: 600; margin: 0 0 10px; }
+.sheetHeader { display: flex; justify-content: space-between; gap: 20px; align-items: start; border-bottom: 2px solid var(--foreground); padding-bottom: 14px; }
+.sheetHeader h2 { font: normal 30px/1.15 Georgia, serif; letter-spacing: -.5px; margin: 0 0 6px; }
+.sheetHeader p { margin: 0; }
+.headerAside { text-align: right; display: grid; gap: 4px; }
+.synthetic { font-weight: 600; color: #6b3d0f; background: #fbf0e2; border: 1px solid #ecd2b0; border-radius: 6px; padding: 4px 10px; font-size: 13px; }
+.quiet { color: var(--muted); }
+
+.counts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; margin: 0; border-block: 1px solid var(--border); }
+.counts > div { padding: 10px 14px; }
+.counts > div + div { border-left: 1px solid var(--border); }
+.counts dt { font-size: 12px; color: var(--muted); }
+.counts dd { margin: 2px 0 0; font: normal 26px/1.2 Georgia, serif; font-variant-numeric: tabular-nums; }
+.counts dd span { font: 14px "Trebuchet MS", "Gill Sans", sans-serif; color: var(--muted); }
+
+.overview { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 32px; }
+.captures { display: flex; gap: 10px; justify-content: center; background: #f4f7f4; border-radius: 10px; padding: 8px 6px 4px; }
+.captures figure { margin: 0; text-align: center; flex: 1; max-width: 170px; }
+.captures img { display: block; width: 100%; height: auto; }
+.captures figcaption { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.mapsPending { min-height: 200px; display: grid; place-items: center; text-align: center; background: #f4f7f4; border-radius: 10px; padding: 20px; color: var(--muted); margin: 0; }
+.caption { font-size: 12px; color: var(--muted); margin: 8px 0 0; }
+.maps :global(ul) { justify-content: start; }
+
+.summaryStatus { font-size: 12px; margin: -4px 0 10px; padding: 4px 8px; border-left: 3px solid var(--border); color: var(--muted); }
+.summaryStatus[data-source="gemini"] { border-left-color: #3c79a8; }
+.sentences { margin: 0 0 12px; padding-left: 18px; display: grid; gap: 6px; line-height: 1.45; }
+.summaryActions { display: grid; gap: 6px; justify-items: start; margin-bottom: 18px; }
+.summaryActions p { margin: 0; font-size: 12px; color: var(--muted); }
+.summaryActions button { border: 1px solid var(--border); background: var(--surface); font-size: 14px; }
+.notes { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.notes li { display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 10px; line-height: 1.45; }
+.noteDate { font-size: 12px; color: var(--muted); padding-top: 2px; }
+.notes q { font-family: Georgia, serif; }
+
+.strip { margin: 0; }
+.stripScroll { overflow-x: auto; }
+.stripScroll svg { display: block; width: 100%; min-width: 520px; height: auto; }
+.stripKey svg { flex: none; }
+.stripLabel { font-size: 7px; fill: var(--muted); }
+.strip figcaption { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 12px; color: var(--muted); margin-top: 6px; }
+.stripKey { display: inline-flex; align-items: center; gap: 6px; }
+
+.tableScroll { overflow-x: auto; }
+.table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+.table th, .table td { text-align: left; padding: 6px 10px 6px 0; border-bottom: 1px solid #e1e8e2; vertical-align: top; }
+.table thead th { font-size: 12px; font-weight: 600; color: var(--muted); border-bottom-color: var(--border); }
+.table tbody th { font-weight: 600; }
+
+.disclaimer { border-top: 1px solid var(--border); padding-top: 12px; font-size: 12px; color: var(--muted); }
+.disclaimer p { margin: 0; max-width: 90ch; }
+
+.offscreen { position: fixed; left: -10000px; top: 0; width: 360px; height: 720px; overflow: hidden; pointer-events: none; }
+
+@media (max-width: 760px) {
+  .controls { padding: 14px; }
+  .print { margin-left: 0; }
+  .sheet { padding: 22px 18px; }
+  .sheetHeader { flex-direction: column; }
+  .headerAside { text-align: left; }
+  .counts { grid-template-columns: 1fr; }
+  .counts > div + div { border-left: 0; border-top: 1px solid var(--border); }
+  .overview { grid-template-columns: 1fr; }
+  .notes li { grid-template-columns: 1fr; gap: 0; }
+}
+
+/* One page on A4 and US Letter: the smaller of the two (A4 width, Letter height) bounds the layout. */
+@page { size: auto; margin: 11mm 12mm; }
+@media print {
+  :global(body:has([data-report-root])) { background: white; }
+  :global(body:has([data-report-root]) .app-header), :global(body:has([data-report-root]) .app-footer),
+  :global(body:has([data-report-root]) .skip-link), :global(body:has([data-report-root]) .page-heading) { display: none !important; }
+  :global(body:has([data-report-root]) main) { width: auto; margin: 0; }
+  .controls, .summaryActions, .offscreen, .notice { display: none !important; }
+  .page { display: block; }
+  .sheet { border: 0; padding: 0; max-width: none; gap: 3.2mm; font-size: 8.6pt; color: black; }
+  .sheet h3 { font-size: 9.5pt; margin-bottom: 1.6mm; }
+  .sheetHeader { padding-bottom: 2mm; }
+  .sheetHeader h2 { font-size: 17pt; margin-bottom: 1mm; }
+  .synthetic { font-size: 8pt; padding: 1mm 2.5mm; }
+  .counts dt { font-size: 7.5pt; }
+  .counts dd { font-size: 14pt; }
+  .counts dd span { font-size: 8pt; }
+  .counts > div { padding: 1.4mm 3mm; }
+  .overview { grid-template-columns: 74mm minmax(0, 1fr); gap: 6mm; }
+  .captures { padding: 1mm; }
+  .captures figure { max-width: 34mm; }
+  .captures figcaption, .caption, .summaryStatus, .strip figcaption, .disclaimer, .noteDate { font-size: 7pt; }
+  .maps :global(ul) { font-size: 7.5pt; margin-top: 1.5mm; gap: 1mm 3mm; }
+  .sentences { gap: .8mm; margin-bottom: 2mm; line-height: 1.35; }
+  .notes { gap: 1.2mm; }
+  .notes li { grid-template-columns: 19mm minmax(0, 1fr); gap: 2mm; line-height: 1.35; }
+  .stripScroll svg { min-width: 0; max-height: 26mm; }
+  .table { font-size: 7.8pt; }
+  .table th, .table td { padding: .9mm 2mm .9mm 0; }
+  .table thead th { font-size: 7pt; }
+  .sheet section, .table tr, .overview { break-inside: avoid; }
+  .tableScroll, .stripScroll { overflow: visible; }
+}
