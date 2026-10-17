@@ -1,8 +1,10 @@
 # Hack the Valley
 
-## Pain journal foundation
+## Pain journal
 
-Task 1 of `pain-map-journal` establishes a Next.js App Router / React / TypeScript app with a browser-only Three.js mannequin. Rotate by dragging, use the named front/back/patient-side views, or focus the canvas and use arrow keys, +/−, and Home. Paint mode locks camera gestures; painting, saves, history analysis, and reports are later milestones. History and report routes are labeled placeholders. No database or Gemini credentials are required for this increment.
+The Next.js App Router / React / TypeScript app includes a browser-only Three.js mannequin and Owner B's journal infrastructure. Rotate by dragging, use named views, or focus the canvas and use arrow keys, +/−, and Home. The check-in page adds date-specific note drafts and explicit browser/PostgreSQL store selection. History and report routes remain labeled placeholders.
+
+Owner A is implementing painting and real map validation/reduction separately. Until those are connected, body-map save/copy/empty actions are disabled; notes are unsaved page-local drafts. Owner C's read-only Maya fixture is also pending. No test fixture is used as real journal history.
 
 Requires Node.js 20.19+ and npm (verified with Node 22.16.0).
 
@@ -28,7 +30,24 @@ npm run test:browser
 # For another port: TEST_BASE_URL=http://127.0.0.1:3001 npm run test:browser
 ```
 
-The original procedural mannequin and attribution live in `public/body/`; regenerate the checked-in asset with `npm run body:generate`. The [body/entry contract](docs/body-contract.md) records coordinates, UVs, region IDs, and version rules. The [UI direction](docs/ui-design.md) covers check-in, future history/comparison, report, and accessible responsive controls. Account/store mode and live Gemini scope remain open for the affected later tasks.
+The original mannequin and attribution live in `public/body/`; regenerate it with `npm run body:generate`. The [body/entry contract](docs/body-contract.md) records coordinates, UVs, regions, and versions. The [UI direction](docs/ui-design.md) covers layout and accessible controls.
+
+### Journal storage and handoffs
+
+The default mode is IndexedDB, with explicitly selected local PostgreSQL and temporary visitor sessions; no sign-in or Gemini key is needed. Failed server requests preserve drafts and the selected store. Both adapters expose the same bounded list/read/previous/upsert interface. The [journal documentation](docs/journal.md) describes interfaces for A/C/D, configuration, and remaining real-map acceptance checks.
+
+Optional local PostgreSQL setup:
+
+```sh
+docker compose -f db/compose.yml up -d --wait
+cp .env.example .env.local
+npm run db:migrate
+npm run dev
+```
+
+For an existing ordinary PostgreSQL database, set `DATABASE_URL` in `.env.local` and run the migration command. No TimescaleDB or cloud service is required. Choose **Local PostgreSQL** in the form. After A's map integration lands, verify a painted check-in saves and reloads exactly; that end-to-end check is still pending. Keep database/Gemini credentials server-only.
+
+Run storage checks with `TEST_DATABASE_URL=<local-connection-string> npm run test:journal:postgres`. This uses a temporary test schema and verifies rollback and visitor isolation. Regular `npm test` requires no database/Gemini credentials and discovers nested feature tests.
 
 ## OpenSpec (optional)
 

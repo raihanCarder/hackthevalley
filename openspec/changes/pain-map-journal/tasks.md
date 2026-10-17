@@ -57,6 +57,8 @@ Own the task 1 body renderer/asset files and all body/map implementation. Supply
 
 ## 3. Owner B — daily check-in, persistence, and profile access
 
+Implementation progress on `feat/pain-map-journal-task-3`: repository contracts, both adapters, SQL migrations, session/API access, date/note drafts, service disclosure, and feature tests/docs are implemented for review. The user requested all independent B work while A is in progress. Real editor/PNG/reducer integration, C's immutable Maya source, and the final setup/usability checks remain pending; no subtask below is checked off based only on structural fixtures. See `docs/journal.md` for the precise A/C handoff and verification boundaries.
+
 Own the journal feature and shared-file integration. Establish the bounded repository read/write interface with C/D before they depend on it. Use A's encoder/validator/reducer rather than reimplementing them; import C's immutable Maya fixture through the agreed repository boundary. The date/note form and contract tests can start independently. Storage-mode and visitor/account scope remain decision gates for affected implementation; do not silently build both modes or remove an unapproved option. Ship journal tests/docs with this group.
 
 - [ ] 3.1 Implement the IndexedDB journal adapter with per-profile/date upserts and acknowledged save states once the storage-mode decision is resolved, exposing the shared bounded list/read/upsert repository contract; verify a reload restores the exact map/note, repeated saves create one daily entry, rejected writes preserve the draft, and reads distinguish missing entries from saved empty maps.
