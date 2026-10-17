@@ -1,6 +1,6 @@
 # Daily journal (Owner B)
 
-This branch implements the repository, IndexedDB/PostgreSQL adapters, temporary sessions, API routes, date/note form, and draft handling. A's editor/PNG validator/region reducer and C's immutable Maya reader are separate handoffs. `src/journal/integrations.ts` deliberately exports `null` for those integrations. No replacement codec, reducer, renderer, or synthetic history is included.
+This branch implements the repository, IndexedDB/PostgreSQL adapters, temporary sessions, API routes, date/note form, and draft handling. A's editor, PNG validator, and region reducer and C's immutable Maya reader are connected in `src/journal/integrations.ts` and `src/journal/editor.ts` (see the handoff sections). No replacement codec, reducer, renderer, or synthetic history is included.
 
 The user requested all independently implementable B work while A works in parallel. The implementation follows the two adapters listed in task 3: IndexedDB by default and explicitly selected PostgreSQL, with temporary visitor sessions and no sign-in. The selected store is remembered in the browser. Failed requests never switch stores, including after reload. When browser preferences are blocked, a store must be selected explicitly.
 
@@ -21,7 +21,12 @@ Import interfaces from `src/journal/repository.ts`; reuse entry/map/date types f
 
 Browser consumers use `IndexedDbJournal` with `localVisitorId(window.localStorage)`, or `HttpJournal` after `bootstrap()`. Read-only server consumers use `serverRepository(profile)` in `src/journal/server/runtime.ts`; that module is guarded with `server-only`.
 
-## Handoff from A
+## Handoff from A (connected)
+
+`journalMapServices.validateAndMeasure` decodes and validates all four layers with A's `decodePaintSnapshot` and measures them with `reduceRegions`, in the browser and in Node. `createEditorBridge` in `src/journal/editor.ts` adapts A's `BodyHandle`: `snapshot` copies the buffers before encoding, `load` checks cancellation after decoding and before replacing the editor's map, `clear` loads a blank map, and `subscribe` reports only strokes and undos (it ignores the handle's replay of its latest change and programmatic loads). `CheckInWorkspace` passes the workbench's handle through this bridge. `tests/browser/journal-integration.spec.ts` paints, saves, reloads, and restores a real map.
+
+The original handoff requirements:
+
 
 Connect `journalMapServices` in `src/journal/integrations.ts` to A's real pure decoder/validator/reducer. `validateAndMeasure(snapshot)` must validate/decode all four PNG layers, enforce version/dimension/content constraints, and derive observations using A's atlas/reducer. It must work in browser and Node without importing the renderer. B validates the outer envelope and never trusts client measurements.
 
@@ -31,11 +36,16 @@ Adapt A's editable controller to `JournalEditorBridge` in `src/journal/editor.ts
 - `load(snapshot, {signal?})` and `clear({signal?})` affect only the check-in editor and check cancellation before committing decoded buffers.
 - `subscribe(onEdit)` reports user strokes/erase/undo. Programmatic restoration/clearing does not emit user edits.
 
-B's panel already orchestrates reads/restoration, previous-map copy with a source date, explicit empty maps, save/retry acknowledgments, and newer edits during pending saves. Without A's real bridge, those map actions are disabled. Notes remain in memory by store/date while the check-in page is open; they are not durable drafts. Browser unload warns about unsaved drafts, but app navigation can unmount them. Failed writes retain the draft.
+B's panel already orchestrates reads/restoration, previous-map copy with a source date, explicit empty maps, save/retry acknowledgments, and newer edits during pending saves. Map actions are disabled only until the editor handle has mounted. Notes remain in memory by store/date while the check-in page is open; they are not durable drafts. Browser unload warns about unsaved drafts, but app navigation can unmount them. Failed writes retain the draft.
 
 After connecting A, verify real-map save/reopen in both stores, source immutability, cancellation during restoration, failed-write retention, and the timed 30-second previous-map edit. Structural test snapshots do not prove real-map integration.
 
-## Handoff from C
+## Handoff from C (connected)
+
+`syntheticJournalSource` is `createMayaSource()` from `src/demo/maya-source.ts`: a read-only `list`/`read`/`previous` over the immutable fixture that rejects any profile other than `"maya"` and returns detached copies.
+
+The original handoff requirements:
+
 
 Connect `syntheticJournalSource` in `src/journal/integrations.ts` to C's immutable fixture reader. It implements only `list`, `read`, and `previous`, called with `"maya"`. C/D label consuming screens synthetic/read-only. Both adapters clone fixture results. Maya API reads require no visitor cookie, PostgreSQL, or Gemini; until the source is connected they explicitly return unavailable.
 
