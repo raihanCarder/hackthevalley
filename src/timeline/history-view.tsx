@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import dynamic from "next/dynamic";
 import Link from "next/link";
 import {
   Play,
@@ -33,16 +32,13 @@ import {
   formatRegionName,
   listCalendarDates,
 } from "./analysis";
+import { BodyViewer } from "../body/body-viewer";
+import { decodePaintSnapshot, type PaintLayers } from "../body/map-utils";
 import { TimelinePlaybackController } from "./playback";
 import { BodyDiagram } from "./body-diagram";
 import { TrendChart } from "./trend-chart";
 import styles from "./timeline.module.css";
 
-// Dynamic import for 3D body scene (only loaded when 3D mode is toggled)
-const BodyScene = dynamic(() => import("../body/body-scene"), {
-  ssr: false,
-  loading: () => <div className="scene-message">Preparing 3D mannequin…</div>,
-});
 
 const PAIN_COLORS: Record<PainType, string> = {
   burning: "#ce542e",
@@ -74,8 +70,9 @@ export function HistoryView() {
 
   // View mode: 2D diagram or 3D mannequin
   const [viewMode, setViewMode] = useState<"diagram" | "3d">("diagram");
-  const [cameraView, setCameraView] = useState<"front" | "back" | "left" | "right">("front");
-  const [viewRequest, setViewRequest] = useState(0);
+  // Decoded saved maps for the 3D view; restored exactly, never interpolated between days.
+  const [viewerLayers, setViewerLayers] = useState<PaintLayers | null>(null);
+  const [viewerError, setViewerError] = useState<string | null>(null);
 
   // Playback state
   const [isPlaying, setIsPlaying] = useState(false);
@@ -104,6 +101,18 @@ export function HistoryView() {
 
   // Active entry on current date
   const currentEntry = entryMap.get(currentDate) ?? null;
+
+  // Decode the selected day's saved maps for the read-only 3D body. A newer selection cancels an older decode.
+  useEffect(() => {
+    if (viewMode !== "3d") return;
+    let cancelled = false;
+    setViewerError(null);
+    if (!currentEntry) { setViewerLayers(null); return; }
+    decodePaintSnapshot(currentEntry.maps)
+      .then(layers => { if (!cancelled) setViewerLayers(layers); })
+      .catch(error => { if (!cancelled) { setViewerLayers(null); setViewerError((error as Error).message); } });
+    return () => { cancelled = true; };
+  }, [viewMode, currentEntry]);
 
   // Initialize and tear down playback controller
   const handleDateChange = useCallback((date: LocalDate) => {
@@ -377,23 +386,6 @@ export function HistoryView() {
                 </button>
               </div>
 
-              {viewMode === "3d" && (
-                <div className={styles.cameraViewButtons} role="group" aria-label="Camera angles">
-                  {(["front", "back", "left", "right"] as const).map(v => (
-                    <button
-                      type="button"
-                      key={v}
-                      className={styles.cameraButton}
-                      onClick={() => {
-                        setCameraView(v);
-                        setViewRequest(req => req + 1);
-                      }}
-                    >
-                      {v[0].toUpperCase() + v.slice(1)}
-                    </button>
-                  ))}
-                </div>
-              )}
             </div>
 
             {/* Stage: 2D Anatomical Diagram or 3D Scene */}
@@ -408,7 +400,9 @@ export function HistoryView() {
               />
             ) : (
               <div className={styles.canvasStage}>
-                <BodyScene mode="rotate" view={cameraView} viewRequest={viewRequest} />
+                {viewerError && <p className={styles.viewerNotice} role="alert">This day’s map can’t be shown: {viewerError}</p>}
+                {!currentEntry && <p className={styles.viewerNotice} role="status">No check-in on {formatDisplayDate(currentDate)}. Nothing is shown for this date.</p>}
+                <BodyViewer layers={viewerLayers} label={`${isSynthetic ? "Maya’s" : "Your"} saved map for ${formatDisplayDate(currentDate)}`} />
               </div>
             )}
           </div>
