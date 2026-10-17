@@ -29,10 +29,10 @@ export class TimelinePlaybackController {
   private currentRequestId = 0;
   private onDateChange: (date: LocalDate) => void;
   private onPlaybackEnd: () => void;
-  private entriesByDate: Map<LocalDate, DailyEntry | null>;
+  private entriesByDate: Map<LocalDate, Pick<DailyEntry, "localDate"> | null>;
 
   constructor(
-    entries: readonly DailyEntry[],
+    entries: readonly Pick<DailyEntry, "localDate">[],
     startDate: LocalDate,
     endDate: LocalDate,
     onDateChange: (date: LocalDate) => void,
@@ -100,7 +100,7 @@ export class TimelinePlaybackController {
     }
   }
 
-  public seek(date: LocalDate): number {
+  public seek(date: LocalDate, notify = true): number {
     // Scrubbing cancels active playback and stale loads
     this.pause();
     this.currentRequestId++; // Bump token to cancel any in-flight async loads
@@ -109,7 +109,7 @@ export class TimelinePlaybackController {
     if (idx !== -1) {
       this.currentIndex = idx;
       this.currentDate = date;
-      this.onDateChange(date);
+      if (notify) this.onDateChange(date);
     }
     return this.currentRequestId;
   }
@@ -147,7 +147,11 @@ export class TimelinePlaybackController {
         this.currentIndex++;
         this.currentDate = this.dateList[this.currentIndex];
         this.onDateChange(this.currentDate);
-        this.scheduleNextStep();
+        if (this.currentIndex === this.dateList.length - 1) {
+          this.isPlaying = false;
+          this.timerId = null;
+          this.onPlaybackEnd();
+        } else this.scheduleNextStep();
       } else {
         // Reached end of range: stop cleanly
         this.isPlaying = false;

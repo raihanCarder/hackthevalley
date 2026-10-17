@@ -1,5 +1,5 @@
 import type { Pool, PoolClient } from "pg";
-import { parseLocalDate, type DailyEntry, type LocalDate } from "../domain/contracts";
+import { PAIN_TYPES, REGION_IDS, parseLocalDate, type DailyEntry, type LocalDate, type RegionalObservation } from "../domain/contracts";
 import { checkRead, JournalError, parseStoredEntry, prepareEntry, requireSynthetic, validateRange,
   type CheckInInput, type DateRange, type EntrySummary, type JournalMapServices,
   type JournalProfile, type JournalRepository, type ReadOptions, type SyntheticJournalSource,
@@ -14,7 +14,9 @@ const metadataColumns = `e.id, e.profile_id AS "profileId", to_char(e.local_date
     ORDER BY r.region_id, r.pain_type) FROM regional_observations r WHERE r.entry_id = e.id), '[]'::jsonb) AS observations`;
 
 function normalize(row: Record<string, unknown>): Record<string, unknown> {
-  return { ...row, updatedAt: (row.updatedAt as Date).toISOString(), note: row.note ?? undefined };
+  const observations = [...row.observations as RegionalObservation[]].sort((a, b) =>
+    REGION_IDS.indexOf(a.regionId) - REGION_IDS.indexOf(b.regionId) || PAIN_TYPES.indexOf(a.painType) - PAIN_TYPES.indexOf(b.painType));
+  return { ...row, observations, updatedAt: (row.updatedAt as Date).toISOString(), note: row.note ?? undefined };
 }
 
 export class PostgresJournal implements JournalRepository {

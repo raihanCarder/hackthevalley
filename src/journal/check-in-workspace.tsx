@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { BodyWorkbench } from "../body/body-workbench";
+import { useEffect, useState, useRef } from "react";
 import type { BodyHandle } from "../body/body-handle";
+import { createEditorBridge } from "./editor";
+import { BodyWorkbench } from "../body/body-workbench";
 import { PAIN_LABELS, PAIN_TYPES } from "../domain/contracts";
 import { CheckInPanel } from "./check-in-panel";
-import { createEditorBridge } from "./editor";
 import { IndexedDbJournal, localVisitorId } from "./indexeddb";
 import { HttpJournal } from "./http";
 import { journalMapServices, syntheticJournalSource } from "./integrations";
@@ -15,22 +15,20 @@ import styles from "./journal.module.css";
 interface ServiceStatuses { postgresql: string; gemini: string }
 
 export function CheckInWorkspace() {
+  const body = useRef<BodyHandle | null>(null);
+  const [editor] = useState(() => createEditorBridge(body));
   const [storage, setStorage] = useState<JournalStorage | null>(null);
   const [preferenceError, setPreferenceError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [repository, setRepository] = useState<JournalRepository | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [services, setServices] = useState<ServiceStatuses>({ postgresql: "Checking…", gemini: "Checking…" });
-  const bodyHandle = useRef<BodyHandle | null>(null);
-  const [editorReady, setEditorReady] = useState(false);
-  const editor = useMemo(() => createEditorBridge(() => bodyHandle.current), []);
-  // The workbench assigns its handle after mounting; enable map actions once it exists.
-  useEffect(() => { setEditorReady(bodyHandle.current !== null); }, []);
 
   useEffect(() => {
     try {
       const saved = window.localStorage.getItem("pain-journal-storage");
       setStorage(saved === "postgresql" ? "postgresql" : "indexeddb");
+      if (!saved) window.localStorage.setItem("pain-journal-storage", "indexeddb");
     } catch { setPreferenceError("Choose a save location. This browser cannot remember your selection."); }
   }, []);
 
@@ -76,7 +74,7 @@ export function CheckInWorkspace() {
       <dl className={styles.services} aria-label="Service status"><div><dt>PostgreSQL:</dt><dd>{services.postgresql}</dd></div><div><dt>Gemini:</dt><dd>{services.gemini}</dd></div></dl>
     </div>
     {preferenceError && <p className={styles.error} role="alert">{preferenceError}</p>}
-    <div className="check-in-layout"><BodyWorkbench handleRef={bodyHandle} />{storage ? <CheckInPanel storage={storage} repository={repository?.storage === storage ? repository : null} editor={editorReady ? editor : undefined} connectionError={error} onBusyChange={setBusy} /> : <aside className={styles.panel}>Choose where to save your check-ins.</aside>}</div>
+    <div className="check-in-layout"><BodyWorkbench handleRef={body} onChange={editor.notify} />{storage ? <CheckInPanel storage={storage} repository={repository?.storage === storage ? repository : null} editor={editor} connectionError={error} onBusyChange={setBusy} /> : <aside className={styles.panel}>Choose where to save your check-ins.</aside>}</div>
     <div className={styles.sensations} aria-label="Pain sensation legend"><ul>{PAIN_TYPES.map(type => <li key={type}><span className={`sensation-dot ${type}`} aria-hidden="true" />{PAIN_LABELS[type]}</li>)}</ul></div>
   </>;
 }

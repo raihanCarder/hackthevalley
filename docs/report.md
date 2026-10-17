@@ -6,7 +6,7 @@ Owns `src/report/**`, `src/app/report/**`, `src/app/api/report/**`, `tests/repor
 | --- | --- |
 | Counts, presence, first/last dates, comparisons, per-day trend points | C's `computeReportEvidence`, `compareDates`, `computeRegionTrend` (`src/timeline/analysis.ts`) |
 | Maya's records | C's immutable `MAYA_ENTRIES` (the same fixture the timeline plays) |
-| Visitor records | B's repository: `IndexedDbJournal` or `HttpJournal`, the store the check-in page uses; `list` then `read` |
+| Visitor records | B's repository: `IndexedDbJournal` or `HttpJournal`, whichever store was chosen on the check-in page; `list` then `read` |
 | Map decoding, validation, re-measurement | A's `@/body/map-utils` |
 | Front/back captures | A's read-only `BodyViewer` handle `capture({ layers })` |
 
@@ -48,7 +48,7 @@ It is always available and always labeled "Factual summary, not AI-generated."
 
 ## Gemini configuration
 
-Gemini is optional (the first-increment scope decision). It is enabled only when both of these are set in the server environment, for example `.env.local`. Never prefix them with `NEXT_PUBLIC_`.
+Gemini is included in the MVP, as confirmed by the user on October 17, 2026. The report remains usable without credentials. Live requests are enabled only when both of these are set in the server environment, for example `.env.local`. Never prefix them with `NEXT_PUBLIC_`.
 
 | Variable | Purpose |
 | --- | --- |
@@ -75,7 +75,7 @@ Gemini is optional (the first-increment scope decision). It is enabled only when
 - **No configuration, timeout, HTTP or network error, blocked, truncated or non-JSON response, or a plan that fails validation:** the factual summary, with the specific reason and "Try Gemini again". Provider error bodies are never shown.
 - A fallback is never labeled as Gemini output.
 
-The summary route uses the journal's shared same-origin check (`assertSameOrigin` in `src/journal/server/security.ts`): it requires an `Origin` matching `APP_ORIGIN` when set, otherwise the origin the browser addressed (`Host`), and rejects `Sec-Fetch-Site: cross-site`. Request bodies are capped at 16 MiB.
+The summary route requires a same-origin `Origin` header and rejects `Sec-Fetch-Site: cross-site`. The expected origin is `APP_ORIGIN` when set, otherwise the origin the browser addressed (`Host`). This keeps `next dev` working when it is reached as 127.0.0.1, because the server's own request URL is normalized to localhost there. Request bodies are capped at 16 MiB.
 
 ## Printing
 
@@ -83,7 +83,7 @@ The summary route uses the journal's shared same-origin check (`assertSameOrigin
 
 ## Verification (2026-10-17)
 
-Run on macOS (Apple M5 Pro) with Node 24.21.0 and Chromium 156.
+The earlier feature-level checks below are supplemented by the current integrated run on a MacBook Air (Apple M1, 8 GB), macOS 26.5.2 and Node 22.16.0. Current observed commands/results are in the integration record; earlier device/version claims are superseded.
 
 - **`node --import tsx --test tests/report/*.test.ts`: 14 passing.** Covered:
   - Maya facts equal the timeline's evidence.
@@ -96,7 +96,7 @@ Run on macOS (Apple M5 Pro) with Node 24.21.0 and Chromium 156.
 - **`npx playwright test tests/browser/report-appointment.spec.ts`: 6 passing** against both `next dev` and a production build. Covered:
   - Maya content and labels, plus captures as PNG data URLs.
   - Range recomputation and range-error alert.
-  - Visitor empty state.
+  - Visitor "not connected" and empty states.
   - Print media hiding the chrome, with a one-page A4 and Letter PDF.
   - API status, factual response, 422 for an empty range, 403 cross-origin.
   - Phone layout without overflow.
@@ -105,7 +105,25 @@ Run on macOS (Apple M5 Pro) with Node 24.21.0 and Chromium 156.
   - A plan with an added diagnosis was rejected; the factual summary showed with the reason and a retry.
 - **Live Gemini was not verified:** no API key was available. The request shape follows the public `generateContent` API but has not been exercised against Google's service. When a key is available, set `GEMINI_API_KEY` and `GEMINI_MODEL`, click "Organize with Gemini" on Maya's report, and record the observed model and outcome here.
 
-## Known dependencies and limits
+## Integrated verification and remaining limits
 
-- **Visitor reports use the check-in page's store.** They read the store chosen on the check-in page (key `pain-journal-storage`; IndexedDB when nothing was chosen, the same default as the check-in page) and never change it. When browser storage is blocked, the report asks the person to choose a save location on the Check-in page.
-- **The PDF test is Chromium-only.** The single-page result was measured in Chromium; other browsers' print engines may paginate differently.
+Maya now regenerates through the shared PaintEngine, atlas, reducer, and PNG codec. The prior row-coordinate defect is fixed; every stored observation agrees with its decoded map, and range composites contain the actual markings. Visitor report reads use the selected journal store; real browser-local and local PostgreSQL saves are connected. Unsaved drafts are excluded by repository reads.
+
+The report's Gemini action is cancelled on profile/range changes and unmount, so a late response cannot describe another range. Failure to fetch provider status is labeled unknown rather than not-configured. IndexedDB report connections close after loading.
+
+A local HTTP fake provider exercised the actual UI → Route Handler → provider path: valid evidence was labeled Gemini, changed counts/diagnostic prose were rejected, HTTP errors and timeouts showed factual fallback, retry succeeded, and stale responses did not replace newer ranges. This used only a dummy test key and does not claim a successful request to Google.
+
+Reproduce the provider check in separate terminals:
+
+```sh
+node tests/helpers/gemini-provider.mjs
+# App process (use a spare port if needed):
+PAIN_JOURNAL_DIST_DIR=.next-gemini GEMINI_API_KEY=acceptance-only GEMINI_MODEL=acceptance-model GEMINI_API_BASE=http://127.0.0.1:3199 GEMINI_TIMEOUT_MS=500 npm run dev -- --port 3017
+TEST_BASE_URL=http://127.0.0.1:3017 TEST_GEMINI_PROVIDER=1 npm run test:browser -- tests/browser/report-provider.spec.ts
+```
+
+The adapter follows Google's [generateContent API](https://ai.google.dev/api/generate-content) and [structured output guide](https://ai.google.dev/gemini-api/docs/structured-output), checked October 17, 2026. `GEMINI_MODEL` is explicit so the user can select a model enabled for their key.
+
+**Live Google Gemini remains unverified:** no user key was supplied, and the user will enter it themselves. Set the key/model in `.env.local`, restart, submit Maya's report, and record the observed model and outcome. Task 5.6 permits this explicit verification limit.
+
+The one-page PDF result is Chromium-specific; other browser print engines may paginate differently. Full integration evidence is in [integration verification](integration-verification.md).

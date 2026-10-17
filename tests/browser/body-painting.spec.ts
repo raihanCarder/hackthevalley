@@ -205,7 +205,7 @@ test.describe("touch", () => {
     const at = await projector(page);
     const client = await page.context().newCDPSession(page);
     const [x0, y0] = await toScreen(page, at(.12, .82, .1)), [x1, y1] = await toScreen(page, at(.12, .6, .09));
-    // toScreen returns viewport coordinates, which is what CDP touch events expect; no scroll adjustment.
+    // boundingBox and CDP touch coordinates are both relative to the viewport.
     const point = (x: number, y: number) => [{ x, y, id: 1 }];
     await client.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: point(x0, y0) });
     for (let i = 1; i <= 10; i++) await client.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: point(x0 + (x1 - x0) * i / 10, y0 + (y1 - y0) * i / 10) });
@@ -223,10 +223,19 @@ test("navigation releases renderer resources and a remounted editor still paints
     return { live, created, disposed, handles: handles.size };
   });
   for (let i = 0; i < 3; i++) {
+    await page.evaluate(() => {
+      const state = globalThis as unknown as { __painJournalBodyScenes: Stats; previousEditorHandle?: unknown };
+      state.previousEditorHandle = [...state.__painJournalBodyScenes.handles][0];
+    });
     await page.getByRole("link", { name: "History", exact: true }).click();
-    await expect(page.locator("canvas")).toHaveCount(0);
-    await expect.poll(async () => (await stats()).live).toBe(0);
-    expect((await stats()).handles).toBe(0);
+    await expect(page.getByRole("region", { name: "Body map", exact: true })).toHaveCount(0);
+    await expect(page.locator(".scene-mount")).toHaveAttribute("data-status", "ready");
+    await expect.poll(async () => (await stats()).live).toBe(1);
+    expect((await stats()).handles).toBe(1);
+    expect(await page.evaluate(() => {
+      const state = globalThis as unknown as { __painJournalBodyScenes: Stats; previousEditorHandle?: unknown };
+      return state.__painJournalBodyScenes.handles.has(state.previousEditorHandle);
+    })).toBe(false);
     await page.getByRole("link", { name: "Check-in", exact: true }).click();
     await expect(page.locator(".scene-mount")).toHaveAttribute("data-status", "ready");
   }

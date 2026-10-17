@@ -2,7 +2,7 @@
 
 ## Context
 
-See `proposal.md` for motivation and the four capability deltas for observable behavior. Task 1 has established the Next.js application, browser-only body scene, original versioned mannequin, shared entry contracts, and initial UI direction. Its five completed subtasks remain intact. Persistence, painting, history analysis, and report generation are still pending. The user has approved four human feature owners working concurrently; this revision organizes that work without implementing further features or changing product requirements.
+See `proposal.md` for motivation and the four capability deltas for observable behavior. The Next.js foundation, original body model, painting, journal persistence, history analysis, and report are now integrated. The task audit records verified completion and the remaining demo-device/live-Gemini acceptance gates. The four-owner responsibility and interface plan below remains the architecture for that implementation.
 
 The intended setting is a laptop-first hackathon demonstration in a browser, with usable touch controls. The user wants a workable MVP and has explicitly allowed ordinary PostgreSQL. Real integrations must be independently demonstrable rather than implied by fixture data. No time-series service or database extension is required.
 
@@ -18,14 +18,14 @@ One Next.js application centered on two experiences: painting pain directly on a
 | Graphics | Direct Three.js + custom shaders | Rotate the mannequin, paint using UV hits, and animate pain types |
 | Backend | Next.js Route Handlers on the Node.js runtime | Daily records, analysis queries, and server-only AI requests in the same application |
 | Persistence | PostgreSQL + `pg` + plain SQL migrations | Ordinary tables for daily entries and regional measurements |
-| AI | Gemini API, pending first-increment confirmation | Descriptive report summary; a factual report remains usable without AI |
+| AI | Gemini API (confirmed; user supplies the key) | Descriptive report summary; a factual report remains usable without AI |
 | Export | Browser Print / Save as PDF | Avoid an additional PDF generation service |
 
 The architecture is browser → Next.js Route Handlers → PostgreSQL, with a server-side call to Gemini when enabled. The Three.js renderer lives behind a browser-only component boundary. Feature ownership, prerequisite handoffs, and the acceptance sequence are in `tasks.md`; the numbered feature groups are not a requirement for everyone to work serially.
 
-### Pending MVP scope clarification
+### MVP integration scope — October 17, 2026
 
-Two questions are awaiting the user: whether this is a single-person local demo or a hosted app with private accounts, and whether live Gemini belongs in the first increment. The existing visitor-session/browser-fallback design below remains a draft until that answer; it is not authorization to build account infrastructure or a second storage engine. The recommended smaller MVP is one local editable profile plus read-only Maya, PostgreSQL as the only persistent store, and a factual report with optional configured Gemini.
+The user requested completion of the full implementation checklist and confirmed Google Gemini, with credentials to be supplied by the user when needed. Retain the existing IndexedDB and explicitly selected local PostgreSQL adapters, temporary visitor sessions, and read-only Maya. Production accounts and clinical deployment remain outside scope. Gemini summaries are included; the deterministic report is available whenever credentials or the provider are unavailable. The live-provider verification limit must be recorded rather than implied by a fake provider.
 
 ## Goals / Non-Goals
 
@@ -93,7 +93,7 @@ Once the foundation PR and this plan are accepted into the team's shared baselin
 
 All four can start owned work after the interface agreement. A builds the actual painting pipeline. B can build the date/note form and test the repository against a test double, while storage/account scope is clarified. C can build pure analysis, playback state, and history UI against typed test fixtures. D can build evidence validation, empty states, and print composition against typed test fixtures. Test doubles belong in tests or an explicitly labeled development harness; they must not appear as real saved history, live AI, or completed integrations.
 
-Completion still follows dependency gates: A supplies real map operations/encoding/reduction; B connects acknowledged saves and exact reads; C generates Maya through A's normal pipeline and verifies history against those maps; D verifies report facts and captures against C's integrated analysis and B's saved entries. B and C may integrate as soon as their respective inputs are ready rather than waiting for every visual effect to be polished. Protect painting and history acceptance ahead of report polish. Resolve storage/account scope before the affected task 3 work, and live Gemini scope before its affected task 5 work; this split does not decide either question.
+Completion still follows dependency gates: A supplies real map operations/encoding/reduction; B connects acknowledged saves and exact reads; C generates Maya through A's normal pipeline and verifies history against those maps; D verifies report facts and captures against C's integrated analysis and B's saved entries. B and C may integrate as soon as their respective inputs are ready rather than waiting for every visual effect to be polished. Protect painting and history acceptance ahead of report polish. The integration scope above retains both stores and temporary visitors and includes Gemini; no production account infrastructure is required.
 
 Publish the shared types and pure modules early in focused prerequisite PRs so consumers can import reviewed code without taking another feature's unfinished page. Rebase/update feature branches from the agreed baseline after those PRs land. Review cross-feature imports against the ownership table. No cross-feature file edits or silent contract changes; request them from the owner and coordinate one small patch.
 
@@ -164,7 +164,7 @@ Generate Maya deterministically from a fixed seed and fixed dates: September 6�
 
 Aggregate saved observations into a compact evidence object with entry references and exact counts, dates, and region/type facts. A worst-area composite takes the maximum value per texel across the selected range and is explicitly labeled as a range composite. It does not imply all marked pain occurred simultaneously. Use the same evidence for charts, tables, and AI inputs.
 
-Gemini is a server-side optional provider. Request structured output describing an ordered summary plan: supported observation kinds, evidence IDs, region/type IDs, counts/dates, and reviewed context references. Validate those fields against server-computed evidence and render the accepted plan through bounded descriptive sentence templates. This allows Gemini to select and organize salient observations while preventing unconstrained diagnostic prose from becoming report content. Free-form notes are quoted data, never instructions. Reject unknown evidence, changed quantities, invented medication attributes, and unsupported claims; on rejection, use the labeled deterministic summary. Do not stream unvalidated model text directly into the report.
+Gemini is an included server-side provider that is enabled when credentials are configured. Request structured output describing an ordered summary plan: supported observation kinds, evidence IDs, region/type IDs, counts/dates, and reviewed context references. Validate those fields against server-computed evidence and render the accepted plan through bounded descriptive sentence templates. This allows Gemini to select and organize salient observations while preventing unconstrained diagnostic prose from becoming report content. Free-form notes are quoted data, never instructions. Reject unknown evidence, changed quantities, invented medication attributes, and unsupported claims; on rejection, use the labeled deterministic summary. Do not stream unvalidated model text directly into the report.
 
 Use a server-configured model, bounded request size, a request timeout, and a user-triggered retry. Keep the report usable during generation. Clearly distinguish live Gemini output, deterministic fallback, and synthetic demonstration data. External-provider errors preserve all report evidence.
 
@@ -198,6 +198,6 @@ Desktop gives the 3D body the dominant visual area beside compact brush controls
 
 ## Migration Plan
 
-No existing journal records require migration. Task 1 already supplies the application and versioned body asset. Establish the approved shared baseline and interface agreements, then implement the four owned feature groups with the completion gates above. Introduce an ordinary PostgreSQL schema migration and fixture seed command; verify daily save/reload behavior against local PostgreSQL. Verify live Gemini separately if it is included and configured. Resolve the pending MVP scope questions before the affected implementation work.
+No existing journal records require migration. Task 1 already supplies the application and versioned body asset. Establish the approved shared baseline and interface agreements, then implement the four owned feature groups with the completion gates above. Introduce an ordinary PostgreSQL schema migration and fixture seed command; verify daily save/reload behavior against local PostgreSQL. Verify live Gemini separately if it is included and configured. Use the retained MVP scope above for remaining integration work.
 
-Use the user's requested branch/commit/push/PR workflow for each task; merges still require explicit permission. This planning revision does not authorize implementing additional features or deploying the app. For later rollback, retain versioned fixtures and the previous schema; disable optional service adapters without changing the selected store or deleting entries. A body-map contract change requires a new version and explicit compatibility handling rather than overwriting prior maps.
+Use the user's requested branch/commit/push/PR workflow for each task; merges still require explicit permission. The user has now authorized finishing this checklist; deployment and merging still require explicit permission. For later rollback, retain versioned fixtures and the previous schema; disable optional service adapters without changing the selected store or deleting entries. A body-map contract change requires a new version and explicit compatibility handling rather than overwriting prior maps.

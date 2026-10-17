@@ -19,12 +19,18 @@ import {
   REGION_IDS,
   PAIN_TYPES,
   PAIN_LABELS,
-  type DailyEntry,
+  parseLocalDate,
   type LocalDate,
   type PainType,
   type RegionId,
 } from "../domain/contracts";
 import { MAYA_ENTRIES, MAYA_PROFILE } from "../demo/maya";
+import { BodyViewer } from "../body/body-viewer";
+import { openVisitorJournal, closeJournal } from "../journal/client-repository";
+import { syntheticJournalSource } from "../journal/integrations";
+import { localToday, validateRange, type EntrySummary, type JournalRepository, type DateRange } from "../journal/repository";
+import { HistoryMapLoader, type LoadedMap } from "./map-loader";
+import { MapComparison } from "./map-comparison";
 import {
   computeRegionTrend,
   compareDates,
@@ -32,13 +38,10 @@ import {
   formatRegionName,
   listCalendarDates,
 } from "./analysis";
-import { BodyViewer } from "../body/body-viewer";
-import { decodePaintSnapshot, type PaintLayers } from "../body/map-utils";
 import { TimelinePlaybackController } from "./playback";
 import { BodyDiagram } from "./body-diagram";
 import { TrendChart } from "./trend-chart";
 import styles from "./timeline.module.css";
-
 
 const PAIN_COLORS: Record<PainType, string> = {
   burning: "#ce542e",
@@ -48,32 +51,56 @@ const PAIN_COLORS: Record<PainType, string> = {
 };
 
 export function HistoryView() {
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => { setHydrated(true); }, []);
   // Profiles: Maya (synthetic demo) or Visitor (local)
   const [activeProfileId, setActiveProfileId] = useState<"maya" | "visitor">("maya");
 
-  // Visitor entries (empty by default for new visitor, demonstrable via check-in)
-  const [visitorEntries] = useState<DailyEntry[]>([]);
-
-  // Current active profile data
-  const entries = activeProfileId === "maya" ? MAYA_ENTRIES : visitorEntries;
+  const [visitorEntries, setVisitorEntries] = useState<EntrySummary[]>([]);
+  const [repository, setRepository] = useState<JournalRepository | null>(null);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const isSynthetic = activeProfileId === "maya";
-
-  // Date range
-  const startDate = (activeProfileId === "maya" ? "2026-09-06" : "2026-10-17") as LocalDate;
-  const endDate = "2026-10-17" as LocalDate;
+  const [range, setRange] = useState<DateRange>({ from: MAYA_PROFILE.dateRange.start, to: MAYA_PROFILE.dateRange.end });
+  const { from: startDate, to: endDate } = range;
+  const selections = useRef<Record<string, { range: DateRange; date: LocalDate }>>({});
+  const [currentDate, setCurrentDate] = useState<LocalDate>(MAYA_PROFILE.dateRange.end);
   const allDates = useMemo(() => listCalendarDates(startDate, endDate), [startDate, endDate]);
+  const entries = useMemo(() => (isSynthetic ? MAYA_ENTRIES : visitorEntries).filter(e => e.localDate >= startDate && e.localDate <= endDate), [isSynthetic, visitorEntries, startDate, endDate]);
+  const [viewMode, setViewMode] = useState<"diagram" | "3d">("3d");
+  const loader = useMemo(() => isSynthetic ? new HistoryMapLoader(syntheticJournalSource, "maya")
+    : repository ? new HistoryMapLoader(repository, "visitor") : null, [isSynthetic, repository]);
+  const [loaded, setLoaded] = useState<{ loader: HistoryMapLoader; date: LocalDate; value: LoadedMap } | null>(null);
+  const [mapError, setMapError] = useState<string | null>(null);
 
-  // Current scrubber date
-  const [currentDate, setCurrentDate] = useState<LocalDate>(
-    (activeProfileId === "maya" ? "2026-10-17" : "2026-10-17") as LocalDate
-  );
+  useEffect(() => {
+    if (isSynthetic) return;
+    const abort = new AbortController();
+    let opened: JournalRepository | null = null;
+    setRepository(null); setVisitorEntries([]); setHistoryLoading(true); setHistoryError(null);
+    openVisitorJournal().then(async source => {
+      opened = source;
+      if (abort.signal.aborted) { closeJournal(source); return; }
+      const summaries = await source.list("visitor", range, { signal: abort.signal });
+      if (!abort.signal.aborted) { setVisitorEntries(summaries); setRepository(source); }
+    }).catch(error => { if (!abort.signal.aborted) setHistoryError((error as Error).message); })
+      .finally(() => { if (!abort.signal.aborted) setHistoryLoading(false); });
+    return () => { abort.abort(); closeJournal(opened); };
+  }, [isSynthetic, range]);
 
-  // View mode: 2D diagram or 3D mannequin
-  const [viewMode, setViewMode] = useState<"diagram" | "3d">("diagram");
-  // Decoded saved maps for the 3D view; restored exactly, never interpolated between days.
-  const [viewerLayers, setViewerLayers] = useState<PaintLayers | null>(null);
-  const [viewerError, setViewerError] = useState<string | null>(null);
-
+  useEffect(() => {
+    if (!loader) return;
+    const abort = new AbortController();
+    setMapError(null);
+    loader.load(currentDate, abort.signal).then(value => {
+      if (!abort.signal.aborted) setLoaded({ loader, date: currentDate, value });
+    }).catch(error => { if (!abort.signal.aborted) setMapError((error as Error).message); });
+    // Decode only a small window ahead. Date/profile/range changes abort outdated reads.
+    const index = allDates.indexOf(currentDate);
+    for (const date of allDates.slice(index + 1, index + 3)) void loader.load(date, abort.signal).catch(() => {});
+    return () => abort.abort();
+  }, [loader, currentDate, allDates]);
+  const selectedMap = loaded?.loader === loader && loaded.date === currentDate ? loaded.value : null;
   // Playback state
   const [isPlaying, setIsPlaying] = useState(false);
   const [speedMs, setSpeedMs] = useState(1000);
@@ -92,7 +119,7 @@ export function HistoryView() {
 
   // Map of entries by date for fast lookup
   const entryMap = useMemo(() => {
-    const map = new Map<LocalDate, DailyEntry>();
+    const map = new Map<LocalDate, EntrySummary>();
     for (const e of entries) {
       map.set(e.localDate, e);
     }
@@ -100,19 +127,9 @@ export function HistoryView() {
   }, [entries]);
 
   // Active entry on current date
-  const currentEntry = entryMap.get(currentDate) ?? null;
-
-  // Decode the selected day's saved maps for the read-only 3D body. A newer selection cancels an older decode.
-  useEffect(() => {
-    if (viewMode !== "3d") return;
-    let cancelled = false;
-    setViewerError(null);
-    if (!currentEntry) { setViewerLayers(null); return; }
-    decodePaintSnapshot(currentEntry.maps)
-      .then(layers => { if (!cancelled) setViewerLayers(layers); })
-      .catch(error => { if (!cancelled) { setViewerLayers(null); setViewerError((error as Error).message); } });
-    return () => { cancelled = true; };
-  }, [viewMode, currentEntry]);
+  const currentEntry = selectedMap?.entry ?? null;
+  const currentSummary = entryMap.get(currentDate) ?? null;
+  const visitorUnavailable = !isSynthetic && (!repository || historyLoading || Boolean(historyError));
 
   // Initialize and tear down playback controller
   const handleDateChange = useCallback((date: LocalDate) => {
@@ -132,13 +149,18 @@ export function HistoryView() {
       handlePlaybackEnd,
       speedMs
     );
+    // Initializing after metadata arrives must not replay an older render's date into React.
+    controller.seek(currentDate, false);
+    setIsPlaying(false);
     playbackRef.current = controller;
 
     return () => {
       controller.dispose();
       playbackRef.current = null;
     };
-  }, [entries, startDate, endDate, handleDateChange, handlePlaybackEnd, speedMs]);
+  }, [entries, startDate, endDate, handleDateChange, handlePlaybackEnd]);
+
+  useEffect(() => { playbackRef.current?.setSpeed(speedMs); }, [speedMs]);
 
   // Handle play / pause toggle
   const togglePlayPause = () => {
@@ -147,6 +169,7 @@ export function HistoryView() {
       playbackRef.current.pause();
       setIsPlaying(false);
     } else {
+      playbackRef.current.seek(currentDate, false);
       const started = playbackRef.current.play();
       if (started) setIsPlaying(true);
     }
@@ -163,6 +186,7 @@ export function HistoryView() {
 
   const handleStepBack = () => {
     if (playbackRef.current) {
+      playbackRef.current.seek(currentDate, false);
       playbackRef.current.stepBackward();
       setIsPlaying(false);
     }
@@ -170,6 +194,7 @@ export function HistoryView() {
 
   const handleStepForward = () => {
     if (playbackRef.current) {
+      playbackRef.current.seek(currentDate, false);
       playbackRef.current.stepForward();
       setIsPlaying(false);
     }
@@ -181,24 +206,36 @@ export function HistoryView() {
       playbackRef.current.pause();
       setIsPlaying(false);
     }
-    setActiveProfileId(profile);
-    if (profile === "maya") {
-      setCurrentDate("2026-10-17" as LocalDate);
-    } else {
-      setCurrentDate("2026-10-17" as LocalDate);
-    }
+    selections.current[activeProfileId] = { range, date: currentDate };
+    const today = localToday();
+    const from = new Date(`${today}T12:00:00Z`); from.setUTCDate(from.getUTCDate() - 41);
+    const selected = selections.current[profile] ?? (profile === "maya"
+      ? { range: { from: MAYA_PROFILE.dateRange.start, to: MAYA_PROFILE.dateRange.end }, date: MAYA_PROFILE.dateRange.end }
+      : { range: { from: parseLocalDate(from.toISOString().slice(0, 10)), to: today }, date: today });
+    setActiveProfileId(profile); setRange(selected.range); setCurrentDate(selected.date);
+    setCompareDateA(selected.range.from); setCompareDateB(selected.range.to);
   };
+
+  function changeRange(next: DateRange) {
+    try {
+      validateRange(next);
+      playbackRef.current?.pause(); setIsPlaying(false);
+      setRange(next);
+      setCurrentDate(date => date < next.from ? next.from : date > next.to ? next.to : date);
+      setCompareDateA(next.from); setCompareDateB(next.to); setHistoryError(null);
+    } catch (error) { setHistoryError((error as Error).message); }
+  }
 
   // Trend analysis calculation (pure and reactive)
   const trendSummary = useMemo(() => {
     return computeRegionTrend(entries, {
-      profileId: activeProfileId === "maya" ? "maya-synthetic" : "visitor",
+      profileId: isSynthetic ? MAYA_PROFILE.id : visitorEntries[0]?.profileId ?? "visitor",
       regionId: selectedRegion,
       painType: selectedPainType,
       startDate,
       endDate,
     });
-  }, [entries, activeProfileId, selectedRegion, selectedPainType, startDate, endDate]);
+  }, [entries, isSynthetic, visitorEntries, selectedRegion, selectedPainType, startDate, endDate]);
 
   // Comparison calculation
   const comparisonResult = useMemo(() => {
@@ -212,7 +249,7 @@ export function HistoryView() {
   const canPlay = entries.length >= 2;
 
   return (
-    <div className={styles.timelineContainer}>
+    <div className={styles.timelineContainer} data-history-root="" data-selected-date={currentDate}>
       {/* Profile Switching Bar */}
       <section className={styles.profileBar} aria-label="Profile selector and status">
         <div className={styles.profileSwitcher}>
@@ -250,13 +287,20 @@ export function HistoryView() {
 
         <p className={styles.syntheticNotice}>
           {isSynthetic
-            ? "Maya is a synthetic sample profile with 42 consecutive daily check-ins demonstrating progression over 6 weeks."
-            : "Visitor profile displays your locally saved check-ins. No history recorded yet in this session."}
+            ? "Maya is a synthetic sample profile with 42 consecutive daily check-ins showing recorded changes over 6 weeks."
+            : repository ? `Visitor records from ${repository.storage === "postgresql" ? "local PostgreSQL" : "this browser"}. Read-only history.`
+            : "Visitor history uses the save location chosen on the Check-in page."}
         </p>
       </section>
 
+      {historyError && <p role="alert">{historyError}</p>}
+      {historyLoading && <p role="status">Loading saved history…</p>}
+      <div className={`${styles.selectorGrid} ${styles.rangeControls}`} role="group" aria-label="Analysis date range">
+        <label className={styles.fieldGroup}><span className={styles.fieldLabel}>From</span><input className={styles.selectInput} aria-label="History from" type="date" value={startDate} max={endDate} onChange={e => { if (e.target.value) changeRange({ ...range, from: e.target.value as LocalDate }); }} /></label>
+        <label className={styles.fieldGroup}><span className={styles.fieldLabel}>To</span><input className={styles.selectInput} aria-label="History to" type="date" value={endDate} min={startDate} onChange={e => { if (e.target.value) changeRange({ ...range, to: e.target.value as LocalDate }); }} /></label>
+      </div>
       {/* Date Scrubber & Playback Controls */}
-      <section className={styles.scrubberCard} aria-label="Calendar date scrubber and playback">
+      <section className={styles.scrubberCard} hidden={!isSynthetic && Boolean(historyError)} aria-label="Calendar date scrubber and playback">
         <div className={styles.scrubberHeader}>
           <div>
             <span className={styles.dateCounter}>
@@ -290,6 +334,7 @@ export function HistoryView() {
         <div className={styles.sliderRow}>
           <input
             type="range"
+            disabled={!hydrated || historyLoading}
             min={0}
             max={Math.max(0, allDates.length - 1)}
             value={currentIndex}
@@ -373,7 +418,7 @@ export function HistoryView() {
                   onClick={() => setViewMode("diagram")}
                 >
                   <Layers size={14} style={{ display: "inline", verticalAlign: "middle", marginRight: 4 }} />
-                  2D Map
+                  Region overview
                 </button>
                 <button
                   type="button"
@@ -391,7 +436,7 @@ export function HistoryView() {
             {/* Stage: 2D Anatomical Diagram or 3D Scene */}
             {viewMode === "diagram" ? (
               <BodyDiagram
-                observations={currentEntry?.observations ?? []}
+                observations={currentSummary?.observations ?? []}
                 selectedRegionId={selectedRegion}
                 onSelectRegion={regionId => {
                   setSelectedRegion(regionId);
@@ -400,9 +445,11 @@ export function HistoryView() {
               />
             ) : (
               <div className={styles.canvasStage}>
-                {viewerError && <p className={styles.viewerNotice} role="alert">This day’s map can’t be shown: {viewerError}</p>}
-                {!currentEntry && <p className={styles.viewerNotice} role="status">No check-in on {formatDisplayDate(currentDate)}. Nothing is shown for this date.</p>}
-                <BodyViewer layers={viewerLayers} label={`${isSynthetic ? "Maya’s" : "Your"} saved map for ${formatDisplayDate(currentDate)}`} />
+                {visitorUnavailable ? <p role="status">{historyError ? "Saved maps are unavailable from the selected store." : "Loading saved history…"}</p>
+                  : mapError ? <p role="alert">This saved map cannot be shown: {mapError}</p>
+                  : !selectedMap && (isSynthetic || repository) ? <p role="status">Loading saved map…</p>
+                  : currentEntry ? <BodyViewer layers={selectedMap?.layers ?? null} label={`Saved map for ${currentDate}`} />
+                  : <p className={styles.missingStateBanner}>No check-in recorded for this date. No map is attributed to this day.</p>}
               </div>
             )}
           </div>
@@ -411,7 +458,7 @@ export function HistoryView() {
           <div className={styles.activeDayCard}>
             <div className={styles.activeDayHeader}>
               <h2 className={styles.activeDayTitle}>Check-in for {formatDisplayDate(currentDate)}</h2>
-              {currentEntry ? (
+              {visitorUnavailable ? <span>History unavailable</span> : currentSummary && !selectedMap ? <span role="status">Opening saved check-in…</span> : currentEntry ? (
                 currentEntry.observations.length === 0 ? (
                   <span style={{ fontSize: "12px", color: "var(--muted)" }}>Explicitly empty check-in</span>
                 ) : (
@@ -426,7 +473,7 @@ export function HistoryView() {
               )}
             </div>
 
-            {currentEntry ? (
+            {visitorUnavailable ? <p>Saved entries must be loaded before this date can be inspected.</p> : currentSummary && !selectedMap ? <p role="status">Loading the saved map and note…</p> : currentEntry ? (
               <>
                 {/* Note */}
                 {currentEntry.note && (
@@ -440,7 +487,7 @@ export function HistoryView() {
                 {currentEntry.observations.length > 0 ? (
                   <div className={styles.observationTags}>
                     {currentEntry.observations.map(obs => (
-                      <div
+                      <button type="button"
                         key={`${obs.regionId}-${obs.painType}`}
                         className={styles.observationTag}
                         style={{ cursor: "pointer" }}
@@ -456,14 +503,14 @@ export function HistoryView() {
                         />
                         <span>
                           <strong>{formatRegionName(obs.regionId)}</strong>: {PAIN_LABELS[obs.painType]} · Peak{" "}
-                          {obs.peakIntensity}/10 ({(obs.mapCoverage * 100).toFixed(0)}% coverage)
+                          {obs.peakIntensity.toFixed(1)}/10 ({(obs.mapCoverage * 100).toFixed(0)}% map coverage)
                         </span>
-                      </div>
+                      </button>
                     ))}
                   </div>
                 ) : (
                   <div className={styles.emptyStateBanner}>
-                    Saved as completely pain-free on this calendar day.
+                    Saved with nothing marked on this calendar day.
                   </div>
                 )}
               </>
@@ -477,10 +524,10 @@ export function HistoryView() {
             )}
 
             {/* Visitor zero entries state */}
-            {activeProfileId === "visitor" && visitorEntries.length === 0 && (
+            {activeProfileId === "visitor" && !historyLoading && !historyError && visitorEntries.length === 0 && (
               <div style={{ textAlign: "center", paddingTop: 8 }}>
                 <p style={{ fontSize: "13px", color: "var(--muted)", margin: "0 0 12px" }}>
-                  You have not saved any check-ins in this session yet.
+                  You have not saved any check-ins in this range yet.
                 </p>
                 <Link
                   href="/"
@@ -495,7 +542,7 @@ export function HistoryView() {
         </div>
 
         {/* Right Column: Analysis Rail (Trends & Comparison) */}
-        <div className={styles.analysisColumn}>
+        <div className={styles.analysisColumn} hidden={visitorUnavailable}>
           {/* Tab Bar */}
           <div className={styles.tabBar} role="tablist">
             <button
@@ -591,6 +638,7 @@ export function HistoryView() {
                 </div>
               </div>
 
+              <p>Last recorded presence: {trendSummary.lastPresentDate ?? "None"}</p>
               {/* Interactive Trend SVG Chart */}
               <TrendChart
                 trend={trendSummary}
@@ -686,8 +734,9 @@ export function HistoryView() {
                 </div>
               )}
 
+              <MapComparison loader={loader} earlier={compareDateA} later={compareDateB} />
               {/* Comparison Observations */}
-              <div className={styles.changesSummaryList}>
+              <div className={styles.changesSummaryList} hidden={!entryMap.has(compareDateA) || !entryMap.has(compareDateB)}>
                 {/* Newly marked areas */}
                 {comparisonResult.newlyMarked.length > 0 && (
                   <div className={styles.newlyMarkedBox}>

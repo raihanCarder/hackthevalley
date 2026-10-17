@@ -86,39 +86,43 @@ class GeminiFailure extends Error {
 
 /** Requests and validates a plan. Throws GeminiFailure; never returns unvalidated content. */
 async function requestPlan(facts: ReportFacts, config: GeminiConfig, fetcher: typeof fetch): Promise<PlanStatement[]> {
-  const url = `${config.endpoint ?? DEFAULT_ENDPOINT}/models/${encodeURIComponent(config.model)}:generateContent`;
-  let response: Response;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(new DOMException("Gemini timed out", "TimeoutError")), config.timeoutMs ?? DEFAULT_TIMEOUT_MS);
   try {
-    response = await fetcher(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-goog-api-key": config.apiKey },
-      body: JSON.stringify(buildGeminiRequest(facts)),
-      signal: AbortSignal.timeout(config.timeoutMs ?? DEFAULT_TIMEOUT_MS),
-    });
-  } catch (error) {
-    const name = (error as Error)?.name;
-    if (name === "TimeoutError" || name === "AbortError") throw new GeminiFailure("timeout", "Gemini did not respond in time.");
-    throw new GeminiFailure("provider-error", "Gemini could not be reached.");
-  }
-  // Provider error bodies are not shown or logged: they can echo request details.
-  if (!response.ok) throw new GeminiFailure("provider-error", `Gemini returned HTTP ${response.status}.`);
-  let body: { candidates?: { content?: { parts?: { text?: string }[] }; finishReason?: string }[]; promptFeedback?: { blockReason?: string } };
-  try { body = await response.json(); }
-  catch (error) {
-    if ((error as Error)?.name === "TimeoutError") throw new GeminiFailure("timeout", "Gemini did not respond in time.");
-    throw new GeminiFailure("rejected", "Gemini returned an unreadable response.");
-  }
-  if (body.promptFeedback?.blockReason) throw new GeminiFailure("rejected", "Gemini declined the request.");
-  const candidate = body.candidates?.[0];
-  const text = candidate?.content?.parts?.map(part => part.text ?? "").join("") ?? "";
-  if (!text || (candidate?.finishReason && candidate.finishReason !== "STOP")) throw new GeminiFailure("rejected", "Gemini returned an incomplete response.");
-  let parsed: unknown;
-  try { parsed = JSON.parse(text); } catch { throw new GeminiFailure("rejected", "Gemini's response was not valid JSON."); }
-  try { return validatePlan(parsed, facts); }
-  catch (error) {
-    if (error instanceof PlanRejected) throw new GeminiFailure("rejected", `Gemini's summary could not be verified against the records. ${error.message}`);
-    throw error;
-  }
+    const url = `${config.endpoint ?? DEFAULT_ENDPOINT}/models/${encodeURIComponent(config.model)}:generateContent`;
+    let response: Response;
+    try {
+      response = await fetcher(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": config.apiKey },
+        body: JSON.stringify(buildGeminiRequest(facts)),
+        signal: controller.signal,
+      });
+    } catch (error) {
+      const name = (error as Error)?.name;
+      if (name === "TimeoutError" || name === "AbortError") throw new GeminiFailure("timeout", "Gemini did not respond in time.");
+      throw new GeminiFailure("provider-error", "Gemini could not be reached.");
+    }
+    // Provider error bodies are not shown or logged: they can echo request details.
+    if (!response.ok) throw new GeminiFailure("provider-error", `Gemini returned HTTP ${response.status}.`);
+    let body: { candidates?: { content?: { parts?: { text?: string }[] }; finishReason?: string }[]; promptFeedback?: { blockReason?: string } };
+    try { body = await response.json(); }
+    catch (error) {
+      if (controller.signal.aborted) throw new GeminiFailure("timeout", "Gemini did not respond in time.");
+      throw new GeminiFailure("rejected", "Gemini returned an unreadable response.");
+    }
+    if (body.promptFeedback?.blockReason) throw new GeminiFailure("rejected", "Gemini declined the request.");
+    const candidate = body.candidates?.[0];
+    const text = candidate?.content?.parts?.map(part => part.text ?? "").join("") ?? "";
+    if (!text || (candidate?.finishReason && candidate.finishReason !== "STOP")) throw new GeminiFailure("rejected", "Gemini returned an incomplete response.");
+    let parsed: unknown;
+    try { parsed = JSON.parse(text); } catch { throw new GeminiFailure("rejected", "Gemini's response was not valid JSON."); }
+    try { return validatePlan(parsed, facts); }
+    catch (error) {
+      if (error instanceof PlanRejected) throw new GeminiFailure("rejected", `Gemini's summary could not be verified against the records. ${error.message}`);
+      throw error;
+    }
+  } finally { clearTimeout(timeout); }
 }
 
 /** Always resolves: a validated Gemini plan, or the deterministic plan with an accurate reason. */
