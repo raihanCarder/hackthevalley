@@ -1,0 +1,29 @@
+.panel { min-width: 0; padding-top: 8px; }
+.panel label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 8px; }
+.panel label span { color: var(--muted); font-weight: normal; }
+.panel input, .panel textarea, .storage select { width: 100%; min-height: 44px; color: var(--foreground); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; font: inherit; }
+.panel textarea { resize: vertical; min-height: 130px; line-height: 1.5; }
+.dateField small { display: block; font-size: 12px; color: var(--muted); margin-top: 6px; overflow-wrap: anywhere; }
+.draftStatus { font-size: 14px; border-left: 3px solid var(--accent); padding-left: 10px; margin: 18px 0; }
+.mapActions { display: grid; gap: 8px; padding-bottom: 24px; margin-bottom: 24px; border-bottom: 1px solid var(--border); }
+.mapActions button { border-color: var(--border); background: var(--surface); text-align: left; font-size: 14px; }
+.panel button:disabled { cursor: not-allowed; opacity: .6; }
+.noteMeta { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; color: var(--muted); font-size: 12px; margin-top: 6px; }
+.explanation, .privacy, .source { color: var(--muted); font-size: 12px; line-height: 1.6; }
+.explanation { margin: 20px 0 14px; }
+.source { padding: 10px 12px; background: var(--stage); border-radius: 8px; }
+.panel .save { background: var(--accent); color: white; width: 100%; min-height: 46px; }
+.panel .save:hover:enabled { background: var(--foreground); }
+.privacy { margin-top: 14px; }
+.error { color: var(--error); font-size: 14px; overflow-wrap: anywhere; }
+.storage { display: flex; align-items: center; justify-content: space-between; gap: 16px 32px; flex-wrap: wrap; margin: 0 0 24px; padding: 14px 0; border-block: 1px solid var(--border); }
+.storage label { display: flex; align-items: center; gap: 12px; font-size: 14px; }
+.storage select { width: auto; font-size: 14px; max-width: 100%; }
+.services { display: flex; gap: 8px 20px; flex-wrap: wrap; margin: 0; font-size: 12px; color: var(--muted); }
+.services div { display: flex; gap: 5px; }
+.services dd { margin: 0; }
+.sensations { margin-top: 26px; padding-top: 22px; border-top: 1px solid var(--border); }
+.sensations ul { display: flex; flex-wrap: wrap; gap: 12px 24px; list-style: none; margin: 0; padding: 0; }
+.sensations li { display: flex; gap: 10px; align-items: center; font-size: 12px; color: var(--muted); }
+@media (max-width: 900px) { .panel { max-width: 640px; width: 100%; } }
+@media (max-width: 580px) { .storage label { flex-direction: column; align-items: start; width: 100%; gap: 6px; } .storage select { width: 100%; } .services { gap: 6px 16px; } }

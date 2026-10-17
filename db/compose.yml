@@ -1,0 +1,19 @@
+name: pain-journal-local
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: pain_journal
+      POSTGRES_PASSWORD: pain_journal
+      POSTGRES_DB: pain_journal
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - journal_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pain_journal -d pain_journal"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+volumes:
+  journal_data:
