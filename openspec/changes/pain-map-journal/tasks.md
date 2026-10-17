@@ -8,11 +8,11 @@ The UI work is tracked in 1.5, 2.5, 3.4, 4.2, the presentation portions of 4.5â€
 
 ## 1. Establish the application and body-map contract
 
-- [ ] 1.1 Establish one Next.js App Router application with React/TypeScript, a browser-only Three.js component boundary, and Node-runtime Route Handlers for server operations, without removing unrelated files; verify development startup, production build, and direct page loading succeed without browser-global or hydration errors.
-- [ ] 1.2 Select or author the mannequin, audit unique UV islands, and record license/provenance plus the body-map version; verify the asset and attribution are present and front, back, hands, and both legs can be inspected.
-- [ ] 1.3 Implement the body scene, lighting, orbit controls, named camera views, and separate Paint/Rotate modes; verify rotation reaches all surfaces and a paint-mode drag does not move the camera.
-- [ ] 1.4 Define shared entry, pain-type, region, version, and local-date contracts; verify validation rejects invalid dates, unknown regions, and unsupported versions and document the body coordinate convention.
-- [ ] 1.5 Use the `frontend-design` skill to establish the non-3D application UI direction, navigation, palette, typography, responsive layouts, and accessible control conventions; verify a documented design plan covers check-in, history analysis, and report screens while keeping the body visually dominant.
+- [x] 1.1 Establish one Next.js App Router application with React/TypeScript, a browser-only Three.js component boundary, and Node-runtime Route Handlers for server operations, without removing unrelated files; verify development startup, production build, and direct page loading succeed without browser-global or hydration errors.
+- [x] 1.2 Select or author the mannequin, audit unique UV islands, and record license/provenance plus the body-map version; verify the asset and attribution are present and front, back, hands, and both legs can be inspected.
+- [x] 1.3 Implement the body scene, lighting, orbit controls, named camera views, and separate Paint/Rotate modes; verify rotation reaches all surfaces and a paint-mode drag does not move the camera.
+- [x] 1.4 Define shared entry, pain-type, region, version, and local-date contracts; verify validation rejects invalid dates, unknown regions, and unsupported versions and document the body coordinate convention.
+- [x] 1.5 Use the `frontend-design` skill to establish the non-3D application UI direction, navigation, palette, typography, responsive layouts, and accessible control conventions; verify a documented design plan covers check-in, history analysis, and report screens while keeping the body visually dominant.
 
 ## 2. Make painting and sensory effects work
 
