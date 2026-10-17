@@ -48,3 +48,8 @@ test("patient-left and patient-right hands and legs are not mirrored in model sp
     assert.ok(island.regionId.startsWith("left") ? Math.min(...xs) > 0 : Math.max(...xs) < 0);
   }
 });
+
+// Feature cases live under tests/body/ (not *.test.ts) so the top-level runner glob loads them exactly once.
+import "./body/painting.cases";
+import "./body/regions.cases";
+import "./body/map-codec.cases";
