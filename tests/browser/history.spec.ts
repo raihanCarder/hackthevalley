@@ -16,8 +16,8 @@ test("history page loads with Maya synthetic profile, scrubber, and no console e
   await expect(page.getByText("Synthetic · Read-only")).toBeVisible();
   await expect(page.locator("input[type=range]")).toBeVisible();
 
-  // Verify default date shows October 17, 2026
-  await expect(page.locator(".timelineContainer")).toContainText("October 17, 2026");
+  // Verify default date shows October 17, 2026 (CSS-module class names are hashed, so locate by accessible text)
+  await expect(page.getByRole("heading", { name: "Check-in for Sat, Oct 17, 2026" })).toBeVisible();
 
   // Verify observations for Oct 17 are visible
   await expect(page.getByText("Lower Back: Aching / dull")).toBeVisible();
@@ -34,13 +34,13 @@ test("date scrubbing updates notes and regional observations faithfully", async 
   const slider = page.locator("input[type=range]");
   await slider.fill("0");
 
-  await expect(page.locator(".timelineContainer")).toContainText("September 6, 2026");
+  await expect(page.getByRole("heading", { name: "Check-in for Sun, Sep 6, 2026" })).toBeVisible();
   await expect(page.getByText("Explicitly empty check-in")).toBeVisible();
   await expect(page.getByText("Feeling good today after a long morning walk")).toBeVisible();
 
   // Scrub to October 3 (onset of thigh burning - index 27)
   await slider.fill("27");
-  await expect(page.locator(".timelineContainer")).toContainText("October 3, 2026");
+  await expect(page.getByRole("heading", { name: "Check-in for Sat, Oct 3, 2026" })).toBeVisible();
   await expect(page.getByText("New sensation today: burning feeling appeared")).toBeVisible();
   await expect(page.getByText("Left Thigh: Burning")).toBeVisible();
   // Calf should NOT be present on Oct 3
@@ -76,15 +76,17 @@ test("date comparison accurately highlights newly marked regions", async ({ page
   // Click Thigh Onset preset (Oct 2 vs Oct 3)
   await page.getByRole("button", { name: "Thigh Onset (Oct 2 vs Oct 3)" }).click();
 
-  await expect(page.getByText("Newly Marked Pain Regions on 2026-10-03")).toBeVisible();
-  await expect(page.getByText("Left Thigh: Burning")).toBeVisible();
+  // Scope to the comparison panel: the selected day's card also lists observations.
+  const comparison = page.getByRole("tabpanel");
+  await expect(comparison.getByText("Newly Marked Pain Regions on 2026-10-03")).toBeVisible();
+  await expect(comparison.getByText("Left Thigh: Burning")).toBeVisible();
   await expect(page.getByText("Left Thigh burning newly recorded on 2026-10-03")).toBeVisible();
 
   // Click Calf Spread preset (Oct 3 vs Oct 10)
   await page.getByRole("button", { name: "Calf Spread (Oct 3 vs Oct 10)" }).click();
 
-  await expect(page.getByText("Newly Marked Pain Regions on 2026-10-10")).toBeVisible();
-  await expect(page.getByText("Left Calf: Burning")).toBeVisible();
+  await expect(comparison.getByText("Newly Marked Pain Regions on 2026-10-10")).toBeVisible();
+  await expect(comparison.getByText("Left Calf: Burning")).toBeVisible();
   await expect(page.getByText("Left Calf burning newly recorded on 2026-10-10")).toBeVisible();
 });
 

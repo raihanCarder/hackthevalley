@@ -163,7 +163,7 @@ export function TrendChart({ trend, activeDate, onSelectDate }: Props) {
                 fill="#b88"
                 opacity="0.5"
               >
-                <title>{pt.localDate}: Unrecorded gap</title>
+                <title>{`${pt.localDate}: Unrecorded gap`}</title>
               </circle>
             );
           }
@@ -210,10 +210,7 @@ export function TrendChart({ trend, activeDate, onSelectDate }: Props) {
                 stroke="#ffffff"
                 strokeWidth={isActive ? 2 : 1}
               >
-                <title>
-                  {pt.localDate}: Peak {pt.peakIntensity}/10, Coverage{" "}
-                  {((pt.mapCoverage ?? 0) * 100).toFixed(0)}%
-                </title>
+                <title>{`${pt.localDate}: Peak ${pt.peakIntensity}/10, Coverage ${((pt.mapCoverage ?? 0) * 100).toFixed(0)}%`}</title>
               </circle>
             </g>
           );
