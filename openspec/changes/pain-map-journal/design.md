@@ -2,7 +2,7 @@
 
 ## Context
 
-See `proposal.md` for motivation and the four capability deltas for observable behavior. The repository originally contained Git workflow instructions, optional OpenSpec setup, and a local prize brief. There are no existing main specs, working application, database migrations, or tests to preserve. The abandoned starter created before planning is not an architecture baseline. The user has selected Next.js and identified 3D body painting and pain analysis over time as the two main selling points. This change creates planning artifacts only.
+See `proposal.md` for motivation and the four capability deltas for observable behavior. Task 1 has established the Next.js application, browser-only body scene, original versioned mannequin, shared entry contracts, and initial UI direction. Its five completed subtasks remain intact. Persistence, painting, history analysis, and report generation are still pending. The user has approved four human feature owners working concurrently; this revision organizes that work without implementing further features or changing product requirements.
 
 The intended setting is a laptop-first hackathon demonstration in a browser, with usable touch controls. The user wants a workable MVP and has explicitly allowed ordinary PostgreSQL. Real integrations must be independently demonstrable rather than implied by fixture data. No time-series service or database extension is required.
 
@@ -21,7 +21,7 @@ One Next.js application centered on two experiences: painting pain directly on a
 | AI | Gemini API, pending first-increment confirmation | Descriptive report summary; a factual report remains usable without AI |
 | Export | Browser Print / Save as PDF | Avoid an additional PDF generation service |
 
-The architecture is browser → Next.js Route Handlers → PostgreSQL, with a server-side call to Gemini when enabled. The Three.js renderer lives behind a browser-only component boundary. The detailed build sequence is in `tasks.md`.
+The architecture is browser → Next.js Route Handlers → PostgreSQL, with a server-side call to Gemini when enabled. The Three.js renderer lives behind a browser-only component boundary. Feature ownership, prerequisite handoffs, and the acceptance sequence are in `tasks.md`; the numbered feature groups are not a requirement for everyone to work serially.
 
 ### Pending MVP scope clarification
 
@@ -55,6 +55,49 @@ Mount the body scene through a Client Component wrapper that dynamically imports
 Organize by responsibility beneath the Next.js app shell: `body/` owns rendering, UV coordinates, region attribution, and resource disposal; `journal/` owns entries and storage adapters; `timeline/` owns playback, trends, and comparison; `report/` owns print rendering and summary selection; `demo/` owns reproducible fixtures. Shared analysis functions supply both the timeline and report. React controls state and UI; a body controller exposes load, snapshot, undo, and camera operations. Shader time does not drive React renders.
 
 Use a shared domain package or directory for input validation, region IDs, entry versions, and report evidence. The backend recomputes or verifies regional values from submitted maps rather than trusting client-provided report counts.
+
+### 1a. Four human feature owners with explicit file boundaries
+
+Assign one person to each feature below. Owner B also serves as the integration owner; this is a coordination responsibility within the four-person team, not a fifth person. Names can be filled in by the team without changing the technical split.
+
+| Owner | Feature and task group | Exclusive implementation files | Tests and feature documentation |
+| --- | --- | --- | --- |
+| A | Body editor, sensation effects, region measurements, and map encoding; task 2 | `src/body/**`, `public/body/**`, `scripts/generate-body.ts` | `tests/body/**`, `tests/body.test.ts`, `tests/browser/body-*.spec.ts`, `docs/body-contract.md`, `docs/body-*.md` |
+| B | Daily journal, agreed storage/profile behavior, and integration; task 3 | `src/journal/**`, `src/app/page.tsx`, `src/app/api/entries/**`, `src/app/api/session/**`, `src/app/api/status/**`, `db/**` | `tests/journal/**`, `tests/browser/journal-*.spec.ts`, `docs/journal*.md` |
+| C | Maya fixtures, playback, trends, and comparison; task 4 | `src/timeline/**`, `src/demo/**`, `src/app/history/**`, `scripts/generate-maya.ts` | `tests/timeline/**`, `tests/demo/**`, `tests/browser/history-*.spec.ts`, `docs/history*.md`, `docs/demo*.md` |
+| D | Appointment evidence presentation, summary/fallback, and printing; task 5 | `src/report/**`, `src/app/report/**`, `src/app/api/report/**` | `tests/report/**`, `tests/browser/report-*.spec.ts`, `docs/report*.md` |
+
+Use feature-local CSS modules inside the owned directories. A owns the body toolbar and renderer; B owns the check-in page composition, date/note/save panel, and how the editor is connected to the journal. C and D consume A's read-only body interface rather than copying or editing renderer code. C owns Maya generation and the immutable fixture module. B owns the repository/profile access policy and imports that fixture through an agreed interface, so two owners do not create competing Maya endpoints or profile-switching state.
+
+Owner B is the sole editor of `src/domain/**`, `src/app/layout.tsx`, `src/app/globals.css`, `src/components/**`, `package.json`, `package-lock.json`, root configuration, `README.md`, `AGENTS.md`, `tests/contracts.test.ts`, `tests/browser/foundation.spec.ts`, `docs/foundation-verification.md`, `docs/ui-design.md`, and shared planning artifacts. Root configuration includes test configuration and package scripts, not the explicitly assigned body/Maya generator files. Other owners supply small requested patches or PR notes for those files instead of editing them on parallel branches. A requests shared model/entry type changes through B; C does the same for analysis types; D for report evidence types. This ownership controls edits, not who reviews them.
+
+Keep tests in each feature's own directory and browser spec names; coordinate runner changes through B before relying on new test globs. Do not append every feature's tests to the shared foundation spec. Feature owners provide setup/validation documentation in their own files, and B links those documents from the README.
+
+### 1b. Agree interfaces before integrating parallel implementations
+
+Use task 1's `src/domain/contracts.ts` and `docs/body-contract.md` as the baseline. Before consumers implement against a new shared interface, the producer and consumers agree its signatures, errors, and cancellation behavior; B lands any shared declaration changes in a small prerequisite PR. Do not independently redefine the same records on feature branches. The following are the required handoffs, not additional implemented APIs:
+
+| Producer | Consumers | Required handoff and invariants |
+| --- | --- | --- |
+| A: body editor | B, C, D | Editable/read-only modes; load and snapshot four independent 512x512 byte layers; selected-layer erase/undo and camera operations; change notification; front/back capture after a requested snapshot is ready. Loading/capturing for history or reports must not alter the check-in draft. Snapshots must not alias mutable renderer buffers. |
+| A: map utilities | B, C, D | Browser/Node-compatible encode/decode and region reduction from the same versioned maps; no DOM, WebGL, or browser renderer import in server-consumed utilities. Preserve the 6 MiB payload and 4,000-character note limits, region rules, coordinate conversion, and incompatible-version rejection. |
+| B: journal repository | C, D; check-in composition | Bounded metadata/observation listing, exact date-specific map/note reads, and acknowledged daily upserts with explicit error/missing results. Read requests identify profile and calendar range; mutation authorization comes from the agreed store/session policy, never a caller-selected profile ID. Missing entries stay distinct from saved empty maps. |
+| C: fixtures and analysis | B, D | An immutable synthetic Maya entry source plus pure shared trend, frequency, presence-date, and two-date comparison functions. Results carry profile/range/source-entry references. The pure analysis module must run without React, browser globals, database connections, or Gemini. |
+| D: report preparation | Report UI; B for entry access | Derive evidence from saved entries using C's analysis, build range composites using A's map format, and label deterministic versus configured Gemini output. D does not introduce a second trend reducer, change journal data, or send notes without the explicit report action. |
+
+Keep profile selection in the consuming page's state and pass that selection to B's shared repository contract. B controls profile identity/access semantics; C owns the history selector UI and read-only playback state. Avoid a shared mutable store that lets report capture or playback overwrite the visitor draft. All callers must use cancellation/revision checks so late requests cannot replace a newer selection.
+
+### 1c. Concurrent starts, completion gates, and Git handoffs
+
+Once the foundation PR and this plan are accepted into the team's shared baseline, create one branch for each top-level feature: `feat/pain-map-journal-task-2` (A), `feat/pain-map-journal-task-3` (B), `feat/pain-map-journal-task-4` (C), and `feat/pain-map-journal-task-5` (D). Each teammate uses their own clone or worktree; do not switch branches in another person's working directory. Commit, push, and open a populated PR for each task. Do not merge without the project's explicit authorization.
+
+All four can start owned work after the interface agreement. A builds the actual painting pipeline. B can build the date/note form and test the repository against a test double, while storage/account scope is clarified. C can build pure analysis, playback state, and history UI against typed test fixtures. D can build evidence validation, empty states, and print composition against typed test fixtures. Test doubles belong in tests or an explicitly labeled development harness; they must not appear as real saved history, live AI, or completed integrations.
+
+Completion still follows dependency gates: A supplies real map operations/encoding/reduction; B connects acknowledged saves and exact reads; C generates Maya through A's normal pipeline and verifies history against those maps; D verifies report facts and captures against C's integrated analysis and B's saved entries. B and C may integrate as soon as their respective inputs are ready rather than waiting for every visual effect to be polished. Protect painting and history acceptance ahead of report polish. Resolve storage/account scope before the affected task 3 work, and live Gemini scope before its affected task 5 work; this split does not decide either question.
+
+Publish the shared types and pure modules early in focused prerequisite PRs so consumers can import reviewed code without taking another feature's unfinished page. Rebase/update feature branches from the agreed baseline after those PRs land. Review cross-feature imports against the ownership table. No cross-feature file edits or silent contract changes; request them from the owner and coordinate one small patch.
+
+Owner B leads task 6 integration with all owners supplying verification. Feature owners put completed subtask IDs, commands/results, and documentation links in their PR descriptions; B alone updates the central checklist from verified results, preserving the apply workflow's per-subtask progress updates. Do not check off a task based only on mocked behavior. Each feature ships its own tests and docs; task 6 checks the assembled experience rather than introducing missing feature tests.
 
 ### 2. One licensed, stylized body with a fixed atlas
 
@@ -143,6 +186,7 @@ Desktop gives the 3D body the dominant visual area beside compact brush controls
 
 ## Risks / Trade-offs
 
+- [Parallel branches conflict or implement different interfaces] → Use exclusive feature paths, one integrator for shared files/checklists, early reviewed interface PRs, and explicit completion gates; typed test fixtures permit independent starts without claiming finished integration.
 - [UV distortion, seams, or overlapping islands misplace marks] → Audit the model/atlas together and test known locations from multiple camera views before persistence work; replace the mesh if its UV contract is unsuitable.
 - [Mean intensity hides a small intense patch] → Retain peak intensity and coverage alongside the mean and report sensations by region rather than one global pain number.
 - [Supporting features consume time needed for the selling points] → Gate work on compelling 3D painting and working longitudinal analysis before report polish; voice and extra report charts remain removable increments.
@@ -154,6 +198,6 @@ Desktop gives the 3D body the dominant visual area beside compact brush controls
 
 ## Migration Plan
 
-No existing records require migration. During the later apply workflow, first reconcile the incomplete starter with this reviewed plan, then add the application and versioned body assets. Introduce an ordinary PostgreSQL schema migration and fixture seed command; verify daily save/reload behavior against local PostgreSQL. Verify live Gemini separately if it is included and configured. Resolve the pending MVP scope questions before implementation.
+No existing journal records require migration. Task 1 already supplies the application and versioned body asset. Establish the approved shared baseline and interface agreements, then implement the four owned feature groups with the completion gates above. Introduce an ordinary PostgreSQL schema migration and fixture seed command; verify daily save/reload behavior against local PostgreSQL. Verify live Gemini separately if it is included and configured. Resolve the pending MVP scope questions before the affected implementation work.
 
-Do not publish or commit as part of this proposal. For later rollback, retain versioned fixtures and the previous schema; disable optional service adapters without changing the selected store or deleting entries. A body-map contract change requires a new version and explicit compatibility handling rather than overwriting prior maps.
+Use the user's requested branch/commit/push/PR workflow for each task; merges still require explicit permission. This planning revision does not authorize implementing additional features or deploying the app. For later rollback, retain versioned fixtures and the previous schema; disable optional service adapters without changing the selected store or deleting entries. A body-map contract change requires a new version and explicit compatibility handling rather than overwriting prior maps.
