@@ -1,0 +1,679 @@
+.timelineContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  width: 100%;
+}
+
+.profileBar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 16px 20px;
+}
+
+.profileSwitcher {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.profileSelector {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--background);
+}
+
+.profileButton {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--foreground);
+  border-radius: 0;
+  min-height: 44px;
+}
+
+.profileButton:hover {
+  background: #e3ece5;
+}
+
+.profileButton[aria-pressed="true"] {
+  background: var(--accent);
+  color: white;
+}
+
+.syntheticBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 20px;
+  background: #edf3ee;
+  color: var(--accent);
+  border: 1px solid var(--border);
+}
+
+.syntheticNotice {
+  font-size: 13px;
+  color: var(--muted);
+  max-width: 50ch;
+  margin: 0;
+}
+
+/* Scrubber & playback bar */
+.scrubberCard {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.scrubberHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.currentDateLabel {
+  font-size: 20px;
+  font-family: Georgia, serif;
+  font-weight: bold;
+  letter-spacing: -0.5px;
+  color: var(--foreground);
+}
+
+.dateCounter {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.sliderRow {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dateSlider {
+  width: 100%;
+  accent-color: var(--accent);
+  height: 28px;
+  cursor: pointer;
+}
+
+.scrubberTicks {
+  display: flex;
+  height: 6px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: #e2e8e3;
+  width: 100%;
+}
+
+.tickRecorded {
+  flex: 1;
+  background: var(--accent);
+  opacity: 0.85;
+}
+
+.tickMissing {
+  flex: 1;
+  background: #dfc8c8;
+}
+
+.tickEmpty {
+  flex: 1;
+  background: #c3d3c7;
+}
+
+.playbackControls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.playbackButtonGroup {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.controlButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--background);
+  color: var(--foreground);
+  font-size: 14px;
+  cursor: pointer;
+  min-height: 44px;
+}
+
+.controlButton:hover:not(:disabled) {
+  background: #e6eee8;
+}
+
+.controlButton:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.playPauseButton {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+  font-weight: 600;
+  padding-inline: 18px;
+}
+
+.playPauseButton:hover:not(:disabled) {
+  background: #2b4c3a;
+}
+
+.speedSelector {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.speedButton {
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--background);
+  cursor: pointer;
+  font-size: 12px;
+  min-height: 36px;
+}
+
+.speedButton[aria-pressed="true"] {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+
+/* Two-column layout for Stage and Analysis */
+.mainGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  gap: 28px;
+  align-items: start;
+}
+
+/* Left side: Body & Inspection */
+.visualColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.bodyStageWrapper {
+  background: var(--stage);
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.viewModeToggleRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 18px;
+  background: #e2eae3;
+  border-bottom: 1px solid var(--border);
+}
+
+.modeToggleButtons {
+  display: flex;
+  gap: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 2px;
+}
+
+.modeToggleButton {
+  padding: 6px 12px;
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  border-radius: 6px;
+  cursor: pointer;
+  min-height: 36px;
+}
+
+.modeToggleButton[aria-pressed="true"] {
+  background: var(--accent);
+  color: white;
+}
+
+.cameraViewButtons {
+  display: flex;
+  gap: 4px;
+}
+
+.cameraButton {
+  padding: 4px 10px;
+  font-size: 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  cursor: pointer;
+  min-height: 34px;
+}
+
+.cameraButton:hover {
+  background: #dce5de;
+}
+
+.canvasStage {
+  height: 440px;
+  position: relative;
+}
+
+/* 2D Body Diagram */
+.diagramStage {
+  height: 440px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 16px;
+  background: var(--stage);
+}
+
+.diagramSvg {
+  max-height: 100%;
+  width: auto;
+}
+
+.diagramSideLabel {
+  font-size: 11px;
+  fill: var(--muted);
+  font-weight: bold;
+}
+
+.diagramRegion {
+  cursor: pointer;
+  transition: fill 0.2s ease, stroke 0.2s ease;
+}
+
+.diagramRegion:hover {
+  stroke: var(--accent);
+  stroke-width: 1.5px;
+}
+
+/* Active Day Card */
+.activeDayCard {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.activeDayHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.activeDayTitle {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0;
+  color: var(--foreground);
+}
+
+.noteBox {
+  background: var(--background);
+  border-left: 3px solid var(--accent);
+  padding: 12px 16px;
+  border-radius: 0 8px 8px 0;
+  font-size: 14px;
+  color: var(--foreground);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.noteLabel {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+.observationTags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.observationTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: var(--background);
+  border: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.observationTagDot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.emptyStateBanner {
+  background: #edf3ee;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  padding: 16px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.missingStateBanner {
+  background: #fbf1ef;
+  border: 1px dashed #e4b6ad;
+  border-radius: 10px;
+  padding: 16px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--error);
+}
+
+/* Right side: Analysis Rail (Trends & Comparison) */
+.analysisColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.tabBar {
+  display: flex;
+  gap: 8px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 8px;
+}
+
+.tabButton {
+  padding: 8px 18px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--muted);
+  min-height: 44px;
+}
+
+.tabButton:hover {
+  background: #e8efe9;
+  color: var(--foreground);
+}
+
+.tabButton[aria-selected="true"] {
+  background: var(--surface);
+  border-color: var(--border);
+  color: var(--accent);
+}
+
+.analysisPanel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.selectorGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.fieldGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.fieldLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.selectInput {
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--background);
+  color: var(--foreground);
+  font-size: 14px;
+  min-height: 44px;
+  cursor: pointer;
+}
+
+.selectInput:focus-visible {
+  outline: 3px solid var(--accent);
+}
+
+/* Stat Cards */
+.statGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.statCard {
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.statValue {
+  font-size: 20px;
+  font-weight: bold;
+  color: var(--foreground);
+  font-family: Georgia, serif;
+}
+
+.statLabel {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* SVG Trend Chart */
+.chartContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.chartSvg {
+  width: 100%;
+  height: 200px;
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: visible;
+}
+
+.chartLegend {
+  display: flex;
+  gap: 18px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legendLineIntensity {
+  width: 18px;
+  height: 3px;
+  background: var(--accent);
+  border-radius: 2px;
+}
+
+.legendLineCoverage {
+  width: 18px;
+  height: 2px;
+  background: #ce542e;
+  border-style: dashed;
+}
+
+.chartNote {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.4;
+  margin: 0;
+}
+
+/* Comparison UI */
+.compareDateRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.quickCompareRow {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.quickCompareButton {
+  padding: 6px 12px;
+  font-size: 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--background);
+  cursor: pointer;
+  min-height: 36px;
+}
+
+.quickCompareButton:hover {
+  background: #dce5de;
+}
+
+.changesSummaryList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.newlyMarkedBox {
+  background: #edf6ef;
+  border: 1px solid #c0d9c4;
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.changeBoxTitle {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent);
+  margin: 0;
+}
+
+.observationSentenceList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.observationSentenceItem {
+  font-size: 13px;
+  color: var(--foreground);
+  line-height: 1.45;
+  padding-left: 12px;
+  border-left: 2px solid var(--accent);
+}
+
+/* Responsive adjustments */
+@media (max-width: 900px) {
+  .mainGrid {
+    grid-template-columns: 1fr;
+  }
+  .statGrid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 580px) {
+  .profileBar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .selectorGrid {
+    grid-template-columns: 1fr;
+  }
+  .compareDateRow {
+    grid-template-columns: 1fr;
+  }
+  .statGrid {
+    grid-template-columns: 1fr;
+  }
+  .canvasStage, .diagramStage {
+    height: 380px;
+  }
+}
