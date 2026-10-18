@@ -112,24 +112,29 @@ test("the chest has no nipples on any body shape", async () => {
   const welded = new Map(loadSourceMesh().sourceIndex.map((source, v) => [source, v]));
   const nipple = NIPPLE_SOURCE_RANGES.flatMap(([first, last]) => Array.from({ length: last - first + 1 }, (_, i) => welded.get(first + i)!));
   for (const partial of [{}, { sex: 0 }, { sex: 1 }, { sex: 0, weight: 1, muscle: 1 }, { sex: 0, weight: 0, muscle: 0 }, { sex: 1, weight: 1, muscle: 1 }, { sex: 0, age: 1 }] as Partial<BodyShape>[]) {
-    const { atlas, result, asset: body } = await morphed(partial);
-    const p = atlas.vertices, normal = new Float32Array(atlas.vertexCount * 3);
-    body.weld.forEach((v, r) => { for (let axis = 0; axis < 3; axis++) normal[v * 3 + axis] = result.normals[r * 3 + axis]; });
-    // Height of each nipple-area vertex above the mean of its three-ring neighbourhood, along the surface normal.
-    // The modelled nipples stood 3.5–4.6 mm proud; smooth skin with the chest's own curvature stays well under 1 mm.
+    const { atlas } = await morphed(partial);
+    const p = atlas.vertices, area = new Float64Array(atlas.vertexCount), normal = new Float64Array(atlas.vertexCount * 3);
+    for (let t = 0; t < atlas.triangleCount; t++) {
+      const [a, b, c] = [0, 1, 2].map(i => atlas.triangles[t * 3 + i]);
+      const e1 = [0, 1, 2].map(k => p[b * 3 + k] - p[a * 3 + k]), e2 = [0, 1, 2].map(k => p[c * 3 + k] - p[a * 3 + k]);
+      const n = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]];
+      for (const v of [a, b, c]) { area[v] += Math.hypot(...n) / 6; for (let k = 0; k < 3; k++) normal[v * 3 + k] += n[k]; }
+    }
+    const gap = (u: number, v: number) => Math.hypot(p[u * 3] - p[v * 3], p[u * 3 + 1] - p[v * 3 + 1], p[u * 3 + 2] - p[v * 3 + 2]);
+    const near = Array.from({ length: atlas.vertexCount }, (_, v) => v).filter(v => nipple.some(t => gap(v, t) < .03));
+    // Height of each nipple-area point above the area-weighted mean of the surface within 8 mm, along the normal.
+    // Measured by distance, not mesh steps, so the chest's own curve adds only a fraction of a millimetre; the
+    // modelled nipples measured 2.0–2.2 mm on the default and female shapes.
     let worst = 0;
     for (const v of nipple) {
-      const ring = new Set([v]);
-      for (let step = 0; step < 3; step++) for (const u of [...ring]) for (let i = atlas.neighborStart[u]; i < atlas.neighborStart[u + 1]; i++) ring.add(atlas.neighbors[i]);
-      ring.delete(v);
+      const mean = [0, 0, 0];
+      let total = 0;
+      for (const u of near) if (gap(u, v) <= .008) { total += area[u]; for (let k = 0; k < 3; k++) mean[k] += area[u] * p[u * 3 + k]; }
+      const length = Math.hypot(normal[v * 3], normal[v * 3 + 1], normal[v * 3 + 2]);
       let height = 0;
-      for (let axis = 0; axis < 3; axis++) {
-        let mean = 0;
-        for (const u of ring) mean += p[u * 3 + axis];
-        height += (p[v * 3 + axis] - mean / ring.size) * normal[v * 3 + axis];
-      }
+      for (let k = 0; k < 3; k++) height += (p[v * 3 + k] - mean[k] / total) * normal[v * 3 + k] / length;
       worst = Math.max(worst, height);
     }
-    assert.ok(worst < 5e-4, `${JSON.stringify(partial)}: nipple area stands ${(worst * 1000).toFixed(2)} mm proud`);
+    assert.ok(worst < 1e-3, `${JSON.stringify(partial)}: nipple area stands ${(worst * 1000).toFixed(2)} mm proud`);
   }
 });
