@@ -9,6 +9,6 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return <html lang="en" className="dark"><body><ProfileProvider>
     <a className="skip-link" href="#main">Skip to content</a>
     <AppNav />
-    <main id="main">{children}</main>
+    <main id="main" tabIndex={-1}>{children}</main>
   </ProfileProvider></body></html>;
 }

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, Check, ChevronsUpDown, FileText, History, ScanLine, Sparkles, UserRound } from "lucide-react";
+import { Activity, Check, ChevronsUpDown, FileText, History, House, ScanLine, Sparkles, UserRound } from "lucide-react";
 import { DropdownMenu } from "radix-ui";
 import { useJournalProfile } from "@/journal/profile-context";
 import { Button } from "@/components/ui/button";
@@ -12,19 +12,20 @@ export function AppNav() {
   const pathname = usePathname();
   const { profile, ready, busy, chooseProfile } = useJournalProfile();
   const links = [
+    { href: "/home", label: "Home", icon: House },
     { href: "/", label: "Check-in", icon: ScanLine },
     { href: "/history", label: "History", icon: History },
     { href: "/report", label: "Appointment report", icon: FileText },
   ];
 
   return <aside className="app-sidebar" aria-label="Journal sidebar">
-    <Link className="wordmark" href="/" aria-label="Pain journal home">
+    <Link className="wordmark" href="/home" aria-label="Pain journal home">
       <span className="brand-icon"><Activity size={22} strokeWidth={1.6} aria-hidden="true" /></span>
       <span>pain journal<span className="brand-caption">A little more understanding.</span></span>
     </Link>
     <nav aria-label="Main navigation">{links.map(({ href, label, icon: Icon }) =>
       <Button key={href} asChild variant="ghost" className="nav-link">
-        <Link href={href} aria-current={pathname === href || (href === "/" && pathname === "/check-in") ? "page" : undefined}><Icon size={18} strokeWidth={1.7} aria-hidden="true" />{label}</Link>
+        <Link href={href} onFocus={event => event.currentTarget.scrollIntoView({ block: "nearest", inline: "nearest" })} aria-current={pathname === href || (href === "/" && pathname === "/check-in") ? "page" : undefined}><Icon size={18} strokeWidth={1.7} aria-hidden="true" />{label}</Link>
       </Button>
     )}</nav>
     <Separator className="sidebar-divider" />

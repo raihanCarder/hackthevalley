@@ -5,7 +5,7 @@ test("deep links, Node route, and browser-only renderer load without hydration e
   const errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
   page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
-  for (const path of ["/history", "/report", "/check-in", "/"]) {
+  for (const path of ["/home", "/history", "/report", "/check-in", "/"]) {
     await page.goto(path);
     if (path === "/") await expect(page.getByRole("region", { name: "Body map", exact: true })).toBeVisible();
     else await expect(page.locator("h1")).toBeVisible();

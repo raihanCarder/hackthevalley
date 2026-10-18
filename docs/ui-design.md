@@ -1,5 +1,7 @@
 # Pain journal UI direction
 
+The sections below record the design's evolution. The current visual baseline is the charcoal palette and Segoe/system typography in **Local two-profile follow-up** and **Product homepage**; the initial light-theme foundation is historical.
+
 Task 1 UI foundation with Owner B's date/note panel. Full painting/persistence integration, timeline analysis, and report generation remain later acceptance gates.
 
 The central object is a person's body map. A quiet inspection workbench gives it most of the screen, with a compact instruction rail. Avoid dashboard metrics and repeated cards: they would compete with the map before there are any records to analyze. The revised direction uses a broad, softly rounded body stage and plain adjoining text instead of a generic grid of feature cards.
@@ -41,3 +43,13 @@ Mouse, real touch events at 390px, keyboard focus, reduced motion, selected/erro
 ## Local two-profile follow-up
 
 Preserve the current charcoal interface (`--background: #202020`, `--surface: #272727`, `--foreground: #ededed`, `--muted: #a3a3a3`, `--primary: #c7ccba`, `--border: #393939`) and its Segoe/system typography. The body remains the visual focus. The sidebar profile icon now opens a Radix radio menu with exactly You and Maya, with Lucide icons, keyboard focus, and a check indicator. On phones the same icon sits beside the wordmark instead of disappearing with the sidebar footer. History and report display the active profile without duplicating the switcher. Maya is consistently labeled read-only/synthetic. Saved-date navigation and Generate report connect the existing body and evidence views without adding dashboard cards.
+
+## Product homepage
+
+Home at `/home` introduces 3D pain painting and analysis over time inside the shared application shell. Navigation order is Home, Check-in (`/`, also active for `/check-in`), History (`/history`), and Appointment report (`/report`). The wordmark opens `/home`; direct root visits still open the body editor. Only the active destination carries `aria-current="page"`.
+
+The homepage leads with “Give your pain a clearer picture.” and a subtitle explaining the rotatable body, daily check-ins, intensity, coverage, and changes over time. A 36–44px phone heading grows to 72px on desktop, with an 18–20px muted subtitle. Existing primary and outline Buttons link to the body map and History while retaining the selected profile. Scoped styles reuse the existing charcoal/sage tokens, system font, and radii.
+
+On larger screens, a simple text composition below the introduction explains painting and saving, playback and regional comparisons, and the supporting appointment report. The sample-history card has been removed. The page needs no WebGL scene, journal query, or provider call. It adds no animation or remote fonts.
+
+Home fits the dynamic viewport and does not allow page scrolling. On screens at most 1200px wide or 800px high, the supporting workflow section is hidden so the heading, subtitle, and both actions remain fully visible. At phone widths, the actions stack; short screens use compact spacing and a smaller heading. The mobile navigation row still scrolls horizontally to reach all four destinations. Text follows a logical heading order and the shared skip link targets a focusable main element. Actual observed results are recorded in [homepage verification](homepage-verification.md).
