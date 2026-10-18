@@ -146,7 +146,20 @@ export function formatDisplayDate(dateStr: string): string {
   return `${dayNames[d.getUTCDay()]}, ${months[month - 1]} ${day}, ${year}`;
 }
 
+const FULL_MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December"
+];
+
+export function formatFullDate(dateStr: string): string {
+  if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
+  const [year, month, day] = dateStr.split("-").map(Number);
+  return `${FULL_MONTH_NAMES[month - 1]} ${day}, ${year}`;
+}
+
 export function formatRegionName(regionId: RegionId): string {
+  if (regionId === "back-lower-torso") return "Lower Back";
+  if (regionId === "back-upper-torso") return "Upper Back";
   return regionId
     .split("-")
     .map(word => word[0].toUpperCase() + word.slice(1))

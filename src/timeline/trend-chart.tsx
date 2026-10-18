@@ -209,12 +209,7 @@ export function TrendChart({ trend, activeDate, onSelectDate }: Props) {
                 fill={isActive ? "#ce542e" : "#203b32"}
                 stroke="#ffffff"
                 strokeWidth={isActive ? 2 : 1}
-              >
-                <title>
-                  {pt.localDate}: Peak {pt.peakIntensity}/10, Coverage{" "}
-                  {((pt.mapCoverage ?? 0) * 100).toFixed(0)}%
-                </title>
-              </circle>
+              />
             </g>
           );
         })}

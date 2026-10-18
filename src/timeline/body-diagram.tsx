@@ -142,14 +142,7 @@ export function BodyDiagram({ observations, selectedRegionId, onSelectRegion }: 
                     onSelectRegion?.(region.id);
                   }
                 }}
-              >
-                <title>
-                  {region.name} ({region.side})
-                  {obs
-                    ? ` — ${obs.painType.toUpperCase()} (Peak ${obs.peakIntensity}/10, ${(obs.mapCoverage * 100).toFixed(0)}% coverage)`
-                    : " — No pain recorded"}
-                </title>
-              </rect>
+              />
             </g>
           );
         })}

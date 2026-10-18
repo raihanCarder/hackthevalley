@@ -30,6 +30,7 @@ import {
   computeRegionTrend,
   compareDates,
   formatDisplayDate,
+  formatFullDate,
   formatRegionName,
   listCalendarDates,
 } from "./analysis";
@@ -203,7 +204,7 @@ export function HistoryView() {
   const canPlay = entries.length >= 2;
 
   return (
-    <div className={styles.timelineContainer}>
+    <div className={`${styles.timelineContainer} timelineContainer`}>
       {/* Profile Switching Bar */}
       <section className={styles.profileBar} aria-label="Profile selector and status">
         <div className={styles.profileSwitcher}>
@@ -253,7 +254,12 @@ export function HistoryView() {
             <span className={styles.dateCounter}>
               Day {currentIndex + 1} of {allDates.length} · {currentDate}
             </span>
-            <div className={styles.currentDateLabel}>{formatDisplayDate(currentDate)}</div>
+            <div className={styles.currentDateLabel}>
+              {formatDisplayDate(currentDate)}
+              <span style={{ fontSize: "14px", fontWeight: "normal", color: "var(--muted)", marginLeft: "8px" }}>
+                ({formatFullDate(currentDate)})
+              </span>
+            </div>
           </div>
 
           <div className={styles.speedSelector}>
@@ -665,6 +671,7 @@ export function HistoryView() {
                     onClick={() => {
                       setCompareDateA("2026-10-02" as LocalDate);
                       setCompareDateB("2026-10-03" as LocalDate);
+                      handleSeek("2026-10-02" as LocalDate);
                     }}
                   >
                     Thigh Onset (Oct 2 vs Oct 3)
@@ -675,6 +682,7 @@ export function HistoryView() {
                     onClick={() => {
                       setCompareDateA("2026-10-03" as LocalDate);
                       setCompareDateB("2026-10-10" as LocalDate);
+                      handleSeek("2026-10-03" as LocalDate);
                     }}
                   >
                     Calf Spread (Oct 3 vs Oct 10)
@@ -685,6 +693,7 @@ export function HistoryView() {
                     onClick={() => {
                       setCompareDateA("2026-09-06" as LocalDate);
                       setCompareDateB("2026-10-17" as LocalDate);
+                      handleSeek("2026-09-06" as LocalDate);
                     }}
                   >
                     Full 6 Weeks (Sept 6 vs Oct 17)

@@ -47,7 +47,7 @@
 }
 
 .profileButton:hover {
-  background: #e3ece5;
+  background: var(--surface-raised);
 }
 
 .profileButton[aria-pressed="true"] {
@@ -63,9 +63,9 @@
   font-weight: 600;
   padding: 4px 10px;
   border-radius: 20px;
-  background: #edf3ee;
+  background: rgba(20, 184, 166, 0.12);
   color: var(--accent);
-  border: 1px solid var(--border);
+  border: 1px solid rgba(20, 184, 166, 0.3);
 }
 
 .syntheticNotice {
@@ -125,7 +125,7 @@
   height: 6px;
   border-radius: 3px;
   overflow: hidden;
-  background: #e2e8e3;
+  background: var(--surface-raised);
   width: 100%;
 }
 
@@ -137,12 +137,12 @@
 
 .tickMissing {
   flex: 1;
-  background: #dfc8c8;
+  background: rgba(239, 68, 68, 0.4);
 }
 
 .tickEmpty {
   flex: 1;
-  background: #c3d3c7;
+  background: rgba(20, 184, 166, 0.25);
 }
 
 .playbackControls {
@@ -177,7 +177,7 @@
 }
 
 .controlButton:hover:not(:disabled) {
-  background: #e6eee8;
+  background: var(--surface-raised);
 }
 
 .controlButton:disabled {
@@ -194,7 +194,7 @@
 }
 
 .playPauseButton:hover:not(:disabled) {
-  background: #2b4c3a;
+  background: var(--accent-hover);
 }
 
 .speedSelector {
@@ -250,14 +250,14 @@
   justify-content: space-between;
   align-items: center;
   padding: 12px 18px;
-  background: #e2eae3;
+  background: var(--surface);
   border-bottom: 1px solid var(--border);
 }
 
 .modeToggleButtons {
   display: flex;
   gap: 4px;
-  background: var(--surface);
+  background: var(--surface-raised);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 2px;
@@ -294,7 +294,7 @@
 }
 
 .cameraButton:hover {
-  background: #dce5de;
+  background: var(--surface-raised);
 }
 
 .canvasStage {
@@ -404,7 +404,7 @@
 }
 
 .emptyStateBanner {
-  background: #edf3ee;
+  background: var(--surface-raised);
   border: 1px dashed var(--border);
   border-radius: 10px;
   padding: 16px;
@@ -414,13 +414,13 @@
 }
 
 .missingStateBanner {
-  background: #fbf1ef;
-  border: 1px dashed #e4b6ad;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px dashed rgba(239, 68, 68, 0.35);
   border-radius: 10px;
   padding: 16px;
   text-align: center;
   font-size: 14px;
-  color: var(--error);
+  color: #f87171;
 }
 
 /* Right side: Analysis Rail (Trends & Comparison) */
@@ -450,7 +450,7 @@
 }
 
 .tabButton:hover {
-  background: #e8efe9;
+  background: var(--surface-raised);
   color: var(--foreground);
 }
 
@@ -606,7 +606,7 @@
 }
 
 .quickCompareButton:hover {
-  background: #dce5de;
+  background: var(--surface-raised);
 }
 
 .changesSummaryList {
@@ -616,8 +616,8 @@
 }
 
 .newlyMarkedBox {
-  background: #edf6ef;
-  border: 1px solid #c0d9c4;
+  background: rgba(20, 184, 166, 0.08);
+  border: 1px solid rgba(20, 184, 166, 0.25);
   border-radius: 10px;
   padding: 12px 14px;
   display: flex;
