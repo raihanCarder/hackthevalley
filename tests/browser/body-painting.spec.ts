@@ -76,10 +76,23 @@ test("drags that miss the body in Paint mode record nothing and do not move the 
   const revision = await canvas.getAttribute("data-revision");
   const camera = await canvas.getAttribute("data-camera");
   await stroke(page, [at(-.9, 1.9, 0), at(-.7, .2, 0)]);
+  // The floor grid is visible in the lower stage, beside and below the feet.
+  const box = (await canvas.boundingBox())!;
+  await page.mouse.move(box.x + box.width * .08, box.y + box.height * .92);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width * .2, box.y + box.height * .97, { steps: 12 });
+  await page.mouse.up();
   expect(await canvas.getAttribute("data-revision")).toBe(revision);
   expect(await canvas.getAttribute("data-camera")).toBe(camera);
+  expect(await observations(page)).toBe("");
+  expect(await page.evaluate(() => {
+    const state = globalThis as unknown as { __painJournalBodyScenes: { handles: Set<{ snapshot(): Record<string, Uint8Array> }> } };
+    return Object.values([...state.__painJournalBodyScenes.handles][0].snapshot()).every(layer => layer.every(value => value === 0));
+  })).toBe(true);
   await expect(page.getByRole("region", { name: "Marked areas" })).toContainText("Nothing marked yet");
   await expect(page.getByRole("button", { name: "Undo", exact: true })).toBeDisabled();
+  await stroke(page, [lm("left-calf-upper"), lm("left-calf-lower")]);
+  expect(await observations(page)).toContain("left-calf:aching");
 });
 
 test("a single fast drag covers the same path as a slow one", async ({ page }) => {
@@ -179,6 +192,84 @@ test("capture and read-only loads never change the draft; incompatible maps are 
   await expect(page.getByText("This painting can’t be shown")).toHaveCount(0);
 });
 
+test("body captures exclude the visible grid and restore the scene after success or failure", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await open(page);
+  await pick(page, "Burning");
+  await stroke(page, [lm("left-calf-upper"), lm("left-calf-lower")]);
+  await page.mouse.move(10, 10); // Hide the brush preview before comparing static scene pixels.
+  const canvas = page.locator("canvas");
+  const beforeCamera = await canvas.getAttribute("data-camera");
+  const beforeObservations = await observations(page);
+  const before = await canvas.screenshot();
+  // Confirm actual grid pixels in an area clear of the body, so hiding it forever cannot pass.
+  const gridPixels = await page.evaluate(async source => {
+    const image = new Image(); image.src = source; await image.decode();
+    const buffer = document.createElement("canvas"); buffer.width = image.width; buffer.height = image.height;
+    const context = buffer.getContext("2d")!; context.drawImage(image, 0, 0);
+    const { data } = context.getImageData(0, 0, image.width, image.height);
+    let count = 0;
+    for (let y = Math.floor(image.height * .7); y < image.height - 4; y++) for (let x = 4; x < image.width * .1; x++) {
+      const offset = (y * image.width + x) * 4, [r, g, b] = data.subarray(offset, offset + 3);
+      if (r > 32 && r < 65 && g >= r && b <= r) count++;
+    }
+    return count;
+  }, `data:image/png;base64,${before.toString("base64")}`);
+  expect(gridPixels).toBeGreaterThan(20);
+
+  const result = await page.evaluate(async () => {
+    type Handle = { snapshot(): Record<string, Uint8Array>; capture(options?: object): Promise<Record<string, string>> };
+    const handle = [...(globalThis as unknown as { __painJournalBodyScenes: { handles: Set<Handle> } }).__painJournalBodyScenes.handles][0];
+    const fingerprint = () => Promise.all(Object.values(handle.snapshot()).map(async layer => Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", layer as Uint8Array<ArrayBuffer>))).join(",")));
+    const before = await fingerprint();
+    const captures = await handle.capture({ width: 120, height: 200 });
+    const alpha = await Promise.all(Object.values(captures).map(async source => {
+      const image = new Image(); image.src = source; await image.decode();
+      const buffer = document.createElement("canvas"); buffer.width = image.width; buffer.height = image.height;
+      const context = buffer.getContext("2d")!; context.drawImage(image, 0, 0);
+      const { data } = context.getImageData(0, 0, image.width, image.height);
+      let exterior = 0, body = 0;
+      for (let y = 0; y < image.height; y++) for (let x = 0; x < image.width; x++) {
+        const a = data[(y * image.width + x) * 4 + 3];
+        // Hands extend into the side strips at mid-height; sample clear corners and below the feet.
+        if (((y < image.height * .2 || y > image.height * .6) && (x < image.width * .15 || x >= image.width * .85)) || y >= image.height - 2) exterior += a;
+        if (a === 255) body++;
+      }
+      return { exterior, body };
+    }));
+    return { before, after: await fingerprint(), alpha };
+  });
+  expect(result.alpha).toHaveLength(2);
+  for (const image of result.alpha) { expect(image.exterior).toBe(0); expect(image.body).toBeGreaterThan(500); }
+  expect(result.after).toEqual(result.before);
+  expect(await canvas.screenshot()).toEqual(before);
+
+  const failure = await page.evaluate(async () => {
+    type Handle = { snapshot(): Record<string, Uint8Array>; capture(options?: object): Promise<Record<string, string>> };
+    const handle = [...(globalThis as unknown as { __painJournalBodyScenes: { handles: Set<Handle> } }).__painJournalBodyScenes.handles][0];
+    const original = HTMLCanvasElement.prototype.toDataURL;
+    let message = "";
+    try {
+      HTMLCanvasElement.prototype.toDataURL = () => { throw new Error("Forced capture encoding failure"); };
+      await handle.capture({ width: 120, height: 200 });
+    } catch (error) { message = (error as Error).message; }
+    finally { HTMLCanvasElement.prototype.toDataURL = original; }
+    const fingerprints = await Promise.all(Object.values(handle.snapshot()).map(async layer => Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", layer as Uint8Array<ArrayBuffer>))).join(",")));
+    return { message, fingerprints };
+  });
+  expect(failure.message).toBe("Forced capture encoding failure");
+  expect(failure.fingerprints).toEqual(result.before);
+  expect(await canvas.screenshot()).toEqual(before);
+  expect(await canvas.getAttribute("data-camera")).toBe(beforeCamera);
+  expect(await observations(page)).toBe(beforeObservations);
+  // Capture still works after recovery, including another view.
+  expect(await page.evaluate(async () => {
+    const state = globalThis as unknown as { __painJournalBodyScenes: { handles: Set<{ capture(options: object): Promise<{ back: string }> }> } };
+    return (await [...state.__painJournalBodyScenes.handles][0].capture({ views: ["back"], width: 120, height: 200 })).back.startsWith("data:image/png;base64,");
+  })).toBe(true);
+});
+
 test("reduced motion freezes pain effects and keeps painting usable", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await open(page);
@@ -199,7 +290,7 @@ test("renderer failure disables painting controls and explains why", async ({ pa
   await expect(page.getByRole("button", { name: "Paint", exact: true })).toBeDisabled();
   await expect(page.getByLabel("Intensity")).toBeDisabled();
   await expect(page.getByRole("group", { name: "Brush controls", exact: true })).toBeHidden();
-  await expect(page.locator("#scene-help")).toContainText("Painting is unavailable");
+  await expect(page.locator('[id$="-scene-help"]')).toContainText("The body map couldn’t load.");
 });
 
 test.describe("touch", () => {
@@ -237,13 +328,16 @@ test("navigation releases renderer resources and a remounted editor still paints
     await page.getByRole("link", { name: "History", exact: true }).click();
     await expect(page.getByRole("region", { name: "Body map", exact: true })).toHaveCount(0);
     await expect(page.getByText("You have not saved any check-ins in this range yet.", { exact: true })).toBeVisible();
-    await expect.poll(async () => (await stats()).live).toBe(0);
-    expect((await stats()).handles).toBe(0);
+    // Empty history still mounts a read-only body; wait for it instead of the transient gap between scenes.
+    await expect(page.locator(".scene-mount")).toHaveAttribute("data-status", "ready");
+    await expect.poll(async () => (await stats()).live).toBe(1);
+    expect((await stats()).handles).toBe(1);
     await expect.poll(() => page.evaluate(() => {
       const state = globalThis as unknown as { __painJournalBodyScenes: Stats; previousEditorHandle?: unknown };
       return state.__painJournalBodyScenes.handles.has(state.previousEditorHandle);
     })).toBe(false);
     await page.getByRole("link", { name: "Check-in", exact: true }).click();
+    await expect(page.getByRole("region", { name: "Body map", exact: true })).toBeVisible();
     await expect(page.locator(".scene-mount")).toHaveAttribute("data-status", "ready");
   }
   const final = await stats();
