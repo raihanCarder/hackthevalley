@@ -16,6 +16,10 @@ export interface SourceMesh {
   part: ("body" | "left-eye" | "right-eye")[];
   /** Skeleton joints (centroid of each MakeHuman joint helper), in the same space. */
   joints: Map<string, Vec3>;
+  /** Original OBJ vertex index of each welded vertex (morph targets are indexed this way). */
+  sourceIndex: number[];
+  /** Metres per source unit (source offsets scale by this; translation does not apply to offsets). */
+  scale: number;
 }
 
 const KEEP = new Map([["body", "body"], ["helper-l-eye", "left-eye"], ["helper-r-eye", "right-eye"]] as const);
@@ -50,7 +54,8 @@ export function loadSourceMesh(path = SOURCE_PATH): SourceMesh {
 
   const remap = new Map<number, number>();
   const positions: Vec3[] = [];
-  for (const index of [...used].sort((a, b) => a - b)) { remap.set(index, positions.length); positions.push(transform(raw[index])); }
+  const sourceIndex: number[] = [];
+  for (const index of [...used].sort((a, b) => a - b)) { remap.set(index, positions.length); sourceIndex.push(index); positions.push(transform(raw[index])); }
   const triangles: [number, number, number][] = [];
   const part: SourceMesh["part"] = [];
   for (const face of kept) {
@@ -68,7 +73,7 @@ export function loadSourceMesh(path = SOURCE_PATH): SourceMesh {
     for (const index of set) for (let axis = 0; axis < 3; axis++) sum[axis] += raw[index][axis] / set.size;
     joints.set(name.slice("joint-".length), transform(sum));
   }
-  return { positions, triangles, part, joints };
+  return { positions, triangles, part, joints, sourceIndex, scale };
 }
 
 export const distance = (a: Vec3, b: Vec3) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
