@@ -2,8 +2,8 @@ import { writeFileSync } from "node:fs";
 import { BODY_MAP_VERSION } from "../src/domain/contracts";
 import { encodeMorph, type BodyShapePack } from "../src/body/body-shape";
 import { bytesToBase64 } from "../src/body/png";
-import { loadSourceMesh } from "./body/mesh";
-import { classifyTriangles } from "./body/regions";
+import { CHEST_CAP_RADII, chestSmoother } from "./body/chest";
+import { distance, loadSourceMesh } from "./body/mesh";
 import { loadTarget, parseTarget, TARGET_COMMIT, targetPaths } from "./body/targets";
 
 /**
@@ -33,7 +33,10 @@ async function main() {
     }
     return out;
   };
-  const sparse = (dense: Float64Array) => {
+  // Every morph passes through the same nipple-smoothing filter as the default figure (see body/chest.ts).
+  const { centers, smooth } = chestSmoother(mesh);
+  const sparse = (raw: Float64Array) => {
+    const dense = smooth(raw);
     const indices: number[] = [], values: number[] = [];
     for (let v = 0; v < dense.length / 3; v++) {
       if (Math.abs(dense[v * 3]) + Math.abs(dense[v * 3 + 1]) + Math.abs(dense[v * 3 + 2]) < 1e-7) continue;
@@ -60,16 +63,22 @@ async function main() {
     morphs[`hips-${side}`] = sparse(combine([[`hip/hip-scale-horiz-${side}.target`, 1]]));
     morphs[`legs-${side}`] = sparse(combine([[`measure/measure-upperleg-height-${side}.target`, 1], [`measure/measure-lowerleg-height-${side}.target`, 1]]));
   }
-  // Front chest vertices, where the female side of the sex slider is capped.
-  const regions = classifyTriangles(mesh);
-  const chest = new Set<number>();
-  mesh.triangles.forEach((triangle, t) => { if (regions[t] === "front-upper-torso") triangle.forEach(v => chest.add(v)); });
-  const chestBytes = new Uint8Array(chest.size * 4);
-  const view = new DataView(chestBytes.buffer);
-  [...chest].sort((a, b) => a - b).forEach((v, i) => view.setUint32(i * 4, v, true));
+  // Where the female side of the sex slider is capped: full strength over the breasts, fading out smoothly so the
+  // neck, shoulders, and underside of the chest have no seam.
+  const capped: [number, number][] = [];
+  mesh.positions.forEach((position, v) => {
+    const d = Math.min(...centers.map(center => distance(position, center)));
+    const t = Math.min(1, Math.max(0, (CHEST_CAP_RADII.outer - d) / (CHEST_CAP_RADII.outer - CHEST_CAP_RADII.inner)));
+    const strength = Math.round(t * t * (3 - 2 * t) * 255);
+    if (strength) capped.push([v, strength]);
+  });
+  const chestIndices = new Uint8Array(capped.length * 4);
+  const view = new DataView(chestIndices.buffer);
+  capped.forEach(([v], i) => view.setUint32(i * 4, v, true));
+  const chest = { indices: bytesToBase64(chestIndices), strengths: bytesToBase64(Uint8Array.from(capped.map(([, strength]) => strength))) };
 
   const pack: BodyShapePack = {
-    bodyMapVersion: BODY_MAP_VERSION, vertexCount: mesh.positions.length, chestCap: CHEST_CAP, chest: bytesToBase64(chestBytes), morphs,
+    bodyMapVersion: BODY_MAP_VERSION, vertexCount: mesh.positions.length, chestCap: CHEST_CAP, chest, morphs,
     source: { name: "MakeHuman morph targets", commit: TARGET_COMMIT, license: "CC0-1.0", files },
   };
   writeFileSync(`public/body/shape-${BODY_MAP_VERSION}.json`, JSON.stringify(pack) + "\n");

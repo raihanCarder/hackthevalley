@@ -30,8 +30,6 @@ export interface MannequinAsset {
   uvs: number[];
   indices: number[];
   weld: number[];
-  /** Painted-on top and shorts (display only; never affects maps): [top zone, shorts zone, base-mesh height] per render vertex. */
-  garment: number[];
   charts: BodyChart[];
   /** Named surface points used by camera presets, tests, and the synthetic history. */
   landmarks: Record<string, BodyLandmark>;

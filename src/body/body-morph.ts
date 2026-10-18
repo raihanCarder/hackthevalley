@@ -1,6 +1,6 @@
 import { BODY_MAP_VERSION } from "../domain/contracts";
 import type { BodyAtlas } from "./atlas";
-import { decodeShapePack, isDefaultShape, shapeOffsets, type BodyShape, type BodyShapePack, type DecodedShapePack } from "./body-shape";
+import { decodeShapePack, isNeutralShape, shapeOffsets, type BodyShape, type BodyShapePack, type DecodedShapePack } from "./body-shape";
 import { FOCUS_TARGETS, type CameraFocus, type FocusTarget, type MannequinAsset } from "./mannequin";
 
 /**
@@ -44,7 +44,7 @@ export function createMorpher(asset: MannequinAsset, atlas: BodyAtlas, load: () 
 
   return {
     async apply(shape) {
-      const offsets = isDefaultShape(shape) ? new Float32Array(atlas.vertexCount * 3) : shapeOffsets(await load(), shape);
+      const offsets = isNeutralShape(shape) ? new Float32Array(atlas.vertexCount * 3) : shapeOffsets(await load(), shape);
       // Reshape the welded surface and keep the feet on the ground.
       let floor = Infinity;
       for (let v = 0; v < atlas.vertexCount; v++) floor = Math.min(floor, defaults[v * 3 + 1] + offsets[v * 3 + 1]);
