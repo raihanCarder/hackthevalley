@@ -7,8 +7,6 @@ import {
   Pause,
   ChevronLeft,
   ChevronRight,
-  User,
-  Sparkles,
   Calendar,
   Layers,
   Rotate3D,
@@ -27,9 +25,11 @@ import {
 import { MAYA_ENTRIES, MAYA_PROFILE } from "../demo/maya";
 import { BodyViewer } from "../body/body-viewer";
 import { useBodyShapePreference } from "../body/body-shape-preference";
+import { useJournalProfile } from "../journal/profile-context";
+import { initialSelection } from "../journal/selection";
 import { openVisitorJournal, closeJournal } from "../journal/client-repository";
 import { syntheticJournalSource } from "../journal/integrations";
-import { localToday, validateRange, type EntrySummary, type JournalRepository, type DateRange } from "../journal/repository";
+import { validateRange, type EntrySummary, type JournalRepository, type DateRange } from "../journal/repository";
 import { HistoryMapLoader, type LoadedMap } from "./map-loader";
 import { MapComparison } from "./map-comparison";
 import {
@@ -52,10 +52,20 @@ const PAIN_COLORS: Record<PainType, string> = {
 };
 
 export function HistoryView() {
+  const { profile, ready } = useJournalProfile();
+  return ready ? <ProfileHistory key={profile} activeProfileId={profile} /> : <p role="status">Opening history…</p>;
+}
+
+function ProfileHistory({ activeProfileId }: { activeProfileId: "maya" | "visitor" }) {
   const [hydrated, setHydrated] = useState(false);
   useEffect(() => { setHydrated(true); }, []);
-  // Profiles: Maya (synthetic demo) or Visitor (local)
-  const [activeProfileId, setActiveProfileId] = useState<"maya" | "visitor">("maya");
+  const [initial] = useState(() => initialSelection(activeProfileId));
+  const [reloadKey, setReloadKey] = useState(0);
+  useEffect(() => {
+    const refresh = () => setReloadKey(value => value + 1);
+    window.addEventListener("focus", refresh);
+    return () => window.removeEventListener("focus", refresh);
+  }, []);
 
   const [visitorEntries, setVisitorEntries] = useState<EntrySummary[]>([]);
   const [repository, setRepository] = useState<JournalRepository | null>(null);
@@ -65,10 +75,9 @@ export function HistoryView() {
   // The visitor's own maps show on their chosen body shape; Maya always uses the default figure.
   const [preferredShape] = useBodyShapePreference();
   const viewerShape = isSynthetic ? undefined : preferredShape;
-  const [range, setRange] = useState<DateRange>({ from: MAYA_PROFILE.dateRange.start, to: MAYA_PROFILE.dateRange.end });
+  const [range, setRange] = useState<DateRange>(initial.range);
   const { from: startDate, to: endDate } = range;
-  const selections = useRef<Record<string, { range: DateRange; date: LocalDate }>>({});
-  const [currentDate, setCurrentDate] = useState<LocalDate>(MAYA_PROFILE.dateRange.end);
+  const [currentDate, setCurrentDate] = useState<LocalDate>(initial.date);
   const allDates = useMemo(() => listCalendarDates(startDate, endDate), [startDate, endDate]);
   const entries = useMemo(() => (isSynthetic ? MAYA_ENTRIES : visitorEntries).filter(e => e.localDate >= startDate && e.localDate <= endDate), [isSynthetic, visitorEntries, startDate, endDate]);
   const [viewMode, setViewMode] = useState<"diagram" | "3d">("3d");
@@ -90,7 +99,7 @@ export function HistoryView() {
     }).catch(error => { if (!abort.signal.aborted) setHistoryError((error as Error).message); })
       .finally(() => { if (!abort.signal.aborted) setHistoryLoading(false); });
     return () => { abort.abort(); closeJournal(opened); };
-  }, [isSynthetic, range]);
+  }, [isSynthetic, range, reloadKey]);
 
   useEffect(() => {
     if (!loader) return;
@@ -118,8 +127,8 @@ export function HistoryView() {
   const [selectedPainType, setSelectedPainType] = useState<PainType>("aching");
 
   // Comparison selection
-  const [compareDateA, setCompareDateA] = useState<LocalDate>("2026-10-02" as LocalDate);
-  const [compareDateB, setCompareDateB] = useState<LocalDate>("2026-10-03" as LocalDate);
+  const [compareDateA, setCompareDateA] = useState<LocalDate>(initial.range.from);
+  const [compareDateB, setCompareDateB] = useState<LocalDate>(initial.range.to);
 
   // Map of entries by date for fast lookup
   const entryMap = useMemo(() => {
@@ -204,22 +213,6 @@ export function HistoryView() {
     }
   };
 
-  // Profile switch
-  const switchProfile = (profile: "maya" | "visitor") => {
-    if (playbackRef.current) {
-      playbackRef.current.pause();
-      setIsPlaying(false);
-    }
-    selections.current[activeProfileId] = { range, date: currentDate };
-    const today = localToday();
-    const from = new Date(`${today}T12:00:00Z`); from.setUTCDate(from.getUTCDate() - 41);
-    const selected = selections.current[profile] ?? (profile === "maya"
-      ? { range: { from: MAYA_PROFILE.dateRange.start, to: MAYA_PROFILE.dateRange.end }, date: MAYA_PROFILE.dateRange.end }
-      : { range: { from: parseLocalDate(from.toISOString().slice(0, 10)), to: today }, date: today });
-    setActiveProfileId(profile); setRange(selected.range); setCurrentDate(selected.date);
-    setCompareDateA(selected.range.from); setCompareDateB(selected.range.to);
-  };
-
   function changeRange(next: DateRange) {
     try {
       validateRange(next);
@@ -254,47 +247,12 @@ export function HistoryView() {
 
   return (
     <div className={styles.timelineContainer} data-history-root="" data-selected-date={currentDate}>
-      {/* Profile Switching Bar */}
-      <section className={styles.profileBar} aria-label="Profile selector and status">
-        <div className={styles.profileSwitcher}>
-          <div className={styles.profileSelector} role="group" aria-label="Active patient profile">
-            <button
-              type="button"
-              className={styles.profileButton}
-              aria-pressed={activeProfileId === "maya"}
-              onClick={() => switchProfile("maya")}
-            >
-              <Sparkles size={16} aria-hidden="true" />
-              <span>Maya (Synthetic Demo)</span>
-            </button>
-            <button
-              type="button"
-              className={styles.profileButton}
-              aria-pressed={activeProfileId === "visitor"}
-              onClick={() => switchProfile("visitor")}
-            >
-              <User size={16} aria-hidden="true" />
-              <span>Visitor (My Journal)</span>
-            </button>
-          </div>
-
-          {isSynthetic ? (
-            <span className={styles.syntheticBadge}>
-              <span>Synthetic · Read-only</span>
-            </span>
-          ) : (
-            <span className={styles.syntheticBadge} >
-              <span>Local Session</span>
-            </span>
-          )}
-        </div>
-
-        <p className={styles.syntheticNotice}>
-          {isSynthetic
-            ? "Maya is a synthetic sample profile with 42 consecutive daily check-ins showing recorded changes over 6 weeks."
-            : repository ? `Visitor records from ${repository.storage === "postgresql" ? "local PostgreSQL" : "this browser"}. Read-only history.`
-            : "Visitor history uses the save location chosen on the Check-in page."}
-        </p>
+      <section className={styles.profileBar} aria-label="Active profile and status">
+        <div><strong>{isSynthetic ? "Maya" : "You"}</strong><p className={styles.syntheticNotice}>{isSynthetic
+          ? "Maya · Synthetic sample · Six weeks of check-ins."
+          : "Your saved check-ins from PostgreSQL on this device."}</p></div>
+        <Link className="text-link" href={`/report?${new URLSearchParams({ profile: activeProfileId, from: startDate, to: endDate })}`}>Generate report</Link>
+        {!isSynthetic && <button type="button" disabled={historyLoading} onClick={() => setReloadKey(value => value + 1)}>Refresh history</button>}
       </section>
 
       {historyError && <p role="alert">{historyError}</p>}
@@ -449,7 +407,7 @@ export function HistoryView() {
               />
             ) : (
               <div className={styles.canvasStage}>
-                {visitorUnavailable ? <p role="status">{historyError ? "Saved maps are unavailable from the selected store." : "Loading saved history…"}</p>
+                {visitorUnavailable ? <p role="status">{historyError ? "Saved maps are unavailable from local PostgreSQL." : "Loading saved history…"}</p>
                   : mapError ? <p role="alert">This saved map cannot be shown: {mapError}</p>
                   : !selectedMap && (isSynthetic || repository) ? <p role="status">Loading saved map…</p>
                   : currentEntry ? <BodyViewer layers={selectedMap?.layers ?? null} label={`Saved map for ${currentDate}`} shape={viewerShape} />

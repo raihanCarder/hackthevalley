@@ -17,7 +17,8 @@
     "test:browser": "playwright test",
     "body:generate": "node --import tsx scripts/generate-body.ts",
     "body:shape": "node --import tsx scripts/generate-body-shape.ts",
-    "demo:generate": "node --import tsx scripts/generate-maya.ts"
+    "demo:generate": "node --import tsx scripts/generate-maya.ts",
+    "test:local-browser": "node scripts/test-local-browser.mjs"
   },
   "dependencies": {
     "@next/env": "16.4.2",

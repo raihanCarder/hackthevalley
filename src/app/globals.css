@@ -73,11 +73,16 @@
 .app-sidebar .nav-link[aria-current] svg { color: var(--primary); }
 .sidebar-spacer { flex: 1; }
 .sidebar-divider { background: #303030; }
-.sidebar-hint { padding: 24px; color: var(--muted); font-size: 12px; }
-.sidebar-hint p { color: var(--foreground); margin-bottom: 8px; font-size: 13px; }
 .sidebar-footer { display: flex; align-items: center; gap: 11px; flex: none; padding: 16px 22px; border-top: 1px solid #303030; font-size: 12px; }
 .sidebar-footer div > span { display: block; color: var(--muted); font-size: 11px; margin-top: 1px; }
 .profile-avatar { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: #303531; color: var(--primary); }
+.profile-trigger { width: 100%; text-align: left; border-radius: 0; color: var(--foreground); }
+.profile-trigger > svg { margin-left: auto; }
+.profile-label { flex: 1; }
+.profile-menu { z-index: 50; min-width: 250px; padding: 5px; background: var(--surface); color: var(--foreground); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 12px 40px #0005; }
+.profile-option { display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 6px; cursor: pointer; outline: none; font-size: 13px; }
+.profile-option[data-highlighted] { background: var(--secondary); }
+.profile-option > span:first-of-type { flex: 1; }
 main { margin-left: var(--sidebar-width); padding: 0 36px 32px; min-width: 0; min-height: 100dvh; }
 body:has(.journal-workspace[data-view="map"]) { display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
 body:has(.journal-workspace[data-view="map"]) main { flex: 1; min-height: 0; padding: 0; }
@@ -115,7 +120,10 @@ h1 { font-size: clamp(24px, 2.4vw, 32px); line-height: 1.2; font-weight: 500; le
 @media (max-width: 760px) {
   .app-sidebar { position: relative; width: 100%; flex: none; border-right: 0; border-bottom: 1px solid var(--border); }
   .wordmark { padding: 16px 20px; font-size: 18px; }
-  .brand-caption, .sidebar-footer, .sidebar-spacer, .sidebar-hint, .sidebar-divider { display: none !important; }
+  .brand-caption, .sidebar-spacer, .sidebar-divider { display: none !important; }
+  .app-sidebar .profile-trigger { position: absolute; top: 10px; right: 12px; width: auto; padding: 8px; border: 0; }
+  .app-sidebar .profile-trigger .profile-label, .app-sidebar .profile-trigger > svg { display: none; }
+  .wordmark { padding-right: 68px; }
   .app-sidebar nav { display: flex; padding: 0 12px 10px; gap: 4px; overflow-x: auto; scrollbar-width: none; }
   .app-sidebar .nav-link { flex-shrink: 0; }
   .app-sidebar .nav-link { min-height: 40px; padding: 8px 10px; gap: 7px; font-size: 12px; }

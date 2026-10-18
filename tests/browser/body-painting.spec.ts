@@ -1,4 +1,4 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Page } from "./local-fixture";
 import { landmark } from "./body-landmarks";
 
 // Front/back named views stand 2.9 m from the orbit target (0, 1, 0) with a 40° vertical field of view.
@@ -34,7 +34,10 @@ async function stroke(page: Page, model: ModelPoint[], steps = 12) {
 }
 const observations = (page: Page) => page.locator("canvas").getAttribute("data-observations").then(value => value ?? "");
 const coverage = async (page: Page, key: string) => Number((await observations(page)).split(" ").find(item => item.startsWith(`${key}:`))?.split(":")[2] ?? 0);
-const pick = (page: Page, sensation: string) => page.locator("label", { hasText: sensation }).click();
+const pick = async (page: Page, sensation: string) => {
+  await page.getByRole("button", { name: "Paint", exact: true }).click();
+  await page.locator("label", { hasText: sensation }).click();
+};
 
 test("paints the patient's left calf from the front; marks stay attached while rotating", async ({ page }) => {
   await open(page);
@@ -127,6 +130,7 @@ test("overlapping sensations, layer erasing, button undo, and keyboard undo", as
 
 test("brush controls are keyboard operable with visible focus", async ({ page }) => {
   await open(page);
+  await page.getByRole("button", { name: "Paint", exact: true }).click();
   const intensity = page.getByLabel("Intensity");
   await intensity.focus();
   await page.keyboard.press("ArrowRight");
@@ -194,7 +198,7 @@ test("renderer failure disables painting controls and explains why", async ({ pa
   await expect(page.locator(".scene-error[role=alert]")).toContainText("The body map couldn’t load");
   await expect(page.getByRole("button", { name: "Paint", exact: true })).toBeDisabled();
   await expect(page.getByLabel("Intensity")).toBeDisabled();
-  await expect(page.getByRole("button", { name: "Brush", exact: true })).toBeDisabled();
+  await expect(page.getByRole("group", { name: "Brush controls", exact: true })).toBeHidden();
   await expect(page.locator("#scene-help")).toContainText("Painting is unavailable");
 });
 
@@ -232,10 +236,10 @@ test("navigation releases renderer resources and a remounted editor still paints
     });
     await page.getByRole("link", { name: "History", exact: true }).click();
     await expect(page.getByRole("region", { name: "Body map", exact: true })).toHaveCount(0);
-    await expect(page.locator(".scene-mount")).toHaveAttribute("data-status", "ready");
-    await expect.poll(async () => (await stats()).live).toBe(1);
-    expect((await stats()).handles).toBe(1);
-    expect(await page.evaluate(() => {
+    await expect(page.getByText("You have not saved any check-ins in this range yet.", { exact: true })).toBeVisible();
+    await expect.poll(async () => (await stats()).live).toBe(0);
+    expect((await stats()).handles).toBe(0);
+    await expect.poll(() => page.evaluate(() => {
       const state = globalThis as unknown as { __painJournalBodyScenes: Stats; previousEditorHandle?: unknown };
       return state.__painJournalBodyScenes.handles.has(state.previousEditorHandle);
     })).toBe(false);

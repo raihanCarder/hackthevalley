@@ -2,9 +2,8 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Printer } from "lucide-react";
+import { CalendarDays, Printer } from "lucide-react";
 import { PAIN_LABELS, parseLocalDate, type LocalDate } from "@/domain/contracts";
-import { MAYA_PROFILE } from "@/demo/maya";
 import { BodyViewer } from "@/body/body-viewer";
 import type { BodyCaptures, BodyHandle } from "@/body/body-handle";
 import { PainLegend } from "@/body/pain-swatch";
@@ -14,7 +13,10 @@ import { buildRangeComposite } from "./composite";
 import { DayStrip } from "./day-strip";
 import { buildReportModel, presentSensations, regionPhrase, type ReportModel } from "./facts";
 import { deterministicPlan, formatDate, renderStatement } from "./plan";
-import { loadSavedEntries, StorageNotChosen, type ReportProfileKey } from "./report-data";
+import { useJournalProfile } from "@/journal/profile-context";
+import { initialSelection } from "@/journal/selection";
+import { reportRevision } from "./summary-service";
+import { loadSavedEntries, type ReportProfileKey } from "./report-data";
 import type { SummaryResponse } from "./summary-service";
 import styles from "./report.module.css";
 
@@ -22,7 +24,6 @@ type Load =
   | { state: "loading" }
   | { state: "ready"; model: ReportModel; profileId: string }
   | { state: "empty" }
-  | { state: "needs-storage"; message: string }
   | { state: "error"; message: string };
 type Captures = { state: "pending" } | { state: "ready"; images: BodyCaptures } | { state: "unavailable"; message: string };
 type Summary = { state: "factual" } | { state: "loading" } | { state: "done"; result: SummaryResponse } | { state: "error"; message: string };
@@ -31,24 +32,17 @@ type GeminiStatus = { state: "configured"; model: string } | { state: "not-confi
 const CAPTURE_TIMEOUT_MS = 20_000;
 const MAX_RANGE_DAYS = 366;
 
-function shiftDate(date: LocalDate, days: number): LocalDate {
-  const [year, month, day] = date.split("-").map(Number);
-  const value = new Date(0);
-  value.setUTCFullYear(year, month - 1, day + days); // calendar arithmetic, no local time zone
-  return parseLocalDate(value.toISOString().slice(0, 10));
-}
-function defaultRange(profile: ReportProfileKey) {
-  if (profile === "maya") return { from: MAYA_PROFILE.dateRange.start, to: MAYA_PROFILE.dateRange.end };
-  const to = localToday();
-  return { from: shiftDate(to, -41), to };
-}
 function daysBetween(from: string, to: string) {
   return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000) + 1;
 }
 
 export function ReportView() {
-  const [profile, setProfile] = useState<ReportProfileKey>("maya");
-  const [range, setRange] = useState(() => defaultRange("maya"));
+  const { profile, ready } = useJournalProfile();
+  return ready ? <ProfileReport key={profile} profile={profile} /> : <p role="status">Opening report…</p>;
+}
+
+function ProfileReport({ profile }: { profile: ReportProfileKey }) {
+  const [range, setRange] = useState(() => initialSelection(profile).range);
   const [load, setLoad] = useState<Load>({ state: "loading" });
   const [reloadKey, setReloadKey] = useState(0);
   const [composite, setComposite] = useState<PaintLayers | null>(null);
@@ -84,7 +78,7 @@ export function ReportView() {
         .catch(error => { if (!abort.signal.aborted) setCaptures({ state: "unavailable", message: (error as Error).message }); });
     }).catch(error => {
       if (abort.signal.aborted) return;
-      setLoad(error instanceof StorageNotChosen ? { state: "needs-storage", message: error.message } : { state: "error", message: (error as Error).message || "Your saved check-ins couldn’t be loaded." });
+      setLoad({ state: "error", message: (error as Error).message || "Your saved check-ins couldn’t be loaded." });
     });
     return () => { abort.abort(); summaryAbort.current?.abort(); };
   }, [profile, range.from, range.to, rangeError, reloadKey]);
@@ -114,10 +108,11 @@ export function ReportView() {
     const abort = summaryAbort.current = new AbortController();
     setSummary({ state: "loading" });
     try {
-      const body = profile === "maya" ? { profile, from: range.from, to: range.to } : { profile, from: range.from, to: range.to, entries: ready.model.entries };
+      const body = { profile, from: range.from, to: range.to, revision: reportRevision(ready.model.entries) };
       const response = await fetch("/api/report/summary", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal: abort.signal });
       const payload = await response.json().catch(() => null);
       if (abort.signal.aborted) return;
+      if (response.status === 409) { setReloadKey(key => key + 1); return; }
       if (!response.ok || !payload?.summary) throw new Error(payload?.error?.message ?? "The summary service is unavailable.");
       setSummary({ state: "done", result: payload.summary as SummaryResponse });
     } catch (error) {
@@ -126,38 +121,27 @@ export function ReportView() {
     }
   }, [ready, profile, range.from, range.to]);
 
-  function chooseProfile(next: ReportProfileKey) {
-    if (next === profile) return;
-    setProfile(next); setRange(defaultRange(next));
-  }
-
   const synthetic = profile === "maya";
   return <div className={styles.page} data-report-root="">
     <section className={styles.controls} aria-label="Report options">
-      <fieldset className={styles.profiles}>
-        <legend>Whose records</legend>
-        <div>
-          <button type="button" aria-pressed={profile === "maya"} onClick={() => chooseProfile("maya")}>Maya <span>synthetic sample</span></button>
-          <button type="button" aria-pressed={profile === "visitor"} onClick={() => chooseProfile("visitor")}>Your check-ins</button>
-        </div>
-      </fieldset>
+      <p className={styles.profileStatus}>{synthetic ? "Maya" : "You"}</p>
       <div className={styles.dates}>
         <label>From<input type="date" value={range.from} max={range.to} onChange={event => setRange(current => ({ ...current, from: event.target.value as LocalDate }))} /></label>
         <label>To<input type="date" value={range.to} min={range.from} onChange={event => setRange(current => ({ ...current, to: event.target.value as LocalDate }))} /></label>
       </div>
+      <button type="button" onClick={() => setReloadKey(key => key + 1)}>Refresh report</button>
       <button type="button" className={styles.print} onClick={() => window.print()} disabled={!ready}><Printer size={18} strokeWidth={1.8} aria-hidden="true" />Print or save as PDF</button>
       {rangeError && <p className={styles.fieldError} role="alert">{rangeError}</p>}
     </section>
 
     {rangeError ? null : load.state === "loading" ? <p className={styles.notice} role="status">Gathering saved check-ins…</p>
-      : load.state === "needs-storage" ? <EmptyState title="Your check-ins aren’t connected yet" body={load.message} />
       : load.state === "error" ? <div className={styles.notice} role="alert"><p>{load.message}</p><button type="button" onClick={() => setReloadKey(key => key + 1)}>Try again</button></div>
-      : load.state === "empty" ? <EmptyState title={`No saved check-ins between ${formatDate(range.from)} and ${formatDate(range.to)}`}
-        body="Reports are built only from check-ins you have saved. Days without a check-in are never counted as pain-free, and nothing is generated for an empty range." />
+      : load.state === "empty" ? <EmptyState profile={profile} range={range}
+        body={synthetic ? "Maya has no sample check-ins in this range. Choose dates within the six-week sample, or return to its full report." : "Reports use only check-ins you save. Days without a check-in stay unrecorded, and are never counted as pain-free."} />
       : <article className={styles.sheet} aria-labelledby="report-title">
         <header className={styles.sheetHeader}>
           <div>
-            <h2 id="report-title">{synthetic ? "Pain record for Maya" : "Pain record"}</h2>
+            <h2 id="report-title">{synthetic ? "Pain record for Maya" : "Pain record for You"}</h2>
             <p>{formatDate(range.from)} to {formatDate(range.to)} <span className={styles.quiet}>({ready!.model.facts.range.calendarDays} calendar days)</span></p>
           </div>
           <div className={styles.headerAside}>
@@ -243,7 +227,7 @@ function SummaryBlock({ summary, factual, gemini, onRequest, onFactual }: { summ
     <ul className={styles.sentences}>{sentences.map(sentence => <li key={sentence}>{sentence}</li>)}</ul>
     <div className={styles.summaryActions}>
       {gemini.state === "configured" && summary.state !== "loading" && !fromGemini && <>
-        <button type="button" onClick={onRequest}>{result || summary.state === "error" ? "Try Gemini again" : "Organize with Gemini"}</button>
+        <button type="button" onClick={onRequest}>{result || summary.state === "error" ? "Try Gemini again" : "Generate Gemini summary"}</button>
         {!result && summary.state !== "error" && <p>Sends this report’s facts and saved notes to Gemini. Statements that can’t be verified are not used.</p>}
       </>}
       {summary.state === "loading" && <p role="status">Asking Gemini to organize the summary…</p>}
@@ -256,12 +240,17 @@ function SummaryBlock({ summary, factual, gemini, onRequest, onFactual }: { summ
   </div>;
 }
 
-function EmptyState({ title, body }: { title: string; body: string }) {
-  return <div className={styles.empty}>
-    <h2>{title}</h2>
-    <p>{body}</p>
-    <Link className={styles.emptyLink} href="/">Go to the check-in</Link>
-  </div>;
+function EmptyState({ profile, range, body }: { profile: ReportProfileKey; range: { from: LocalDate; to: LocalDate }; body: string }) {
+  const maya = profile === "maya";
+  const href = maya ? "/report?profile=maya&from=2026-09-06&to=2026-10-17" : "/check-in";
+  return <section className={styles.empty} aria-labelledby="empty-report-title">
+    <div className={styles.emptyIcon}><CalendarDays size={24} strokeWidth={1.6} aria-hidden="true" /></div>
+    <p className={styles.emptyEyebrow}>{maya ? "Maya · Synthetic sample" : "Your appointment report"}</p>
+    <h2 id="empty-report-title">No check-ins in this date range</h2>
+    <p className={styles.emptyDates}>{formatDate(range.from)} <span aria-hidden="true">→</span> {formatDate(range.to)}</p>
+    <p className={styles.emptyBody}>{body}</p>
+    <Link className={styles.emptyLink} href={href}>{maya ? "View the full sample report" : "Create a check-in"}</Link>
+  </section>;
 }
 
 const capitalize = (text: string) => text[0].toUpperCase() + text.slice(1);

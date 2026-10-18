@@ -1,7 +1,8 @@
-import { test, expect, type Page } from "@playwright/test";
+import { chooseProfile } from "./profiles";
+import { test, expect, type Page } from "./local-fixture";
 
 async function openMaya(page: Page) {
-  await page.goto("/report");
+  await page.goto("/report?profile=maya");
   await expect(page.getByRole("heading", { name: "Pain record for Maya" })).toBeVisible();
 }
 const pdfPages = (pdf: Buffer) => (pdf.toString("latin1").match(/\/Type\s*\/Page[^s]/g) ?? []).length;
@@ -28,7 +29,7 @@ test("Maya's report shows the same saved evidence as the timeline, labelled synt
   await expect(sheet).toContainText("Heat pack and walking offered partial temporary relief.");
   await expect(sheet).toContainText("Range composite.");
   await expect(sheet).toContainText("It does not provide a diagnosis or treatment advice.");
-  await expect(page.getByRole("button", { name: "Organize with Gemini" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Generate Gemini summary" })).toHaveCount(0);
   await expect(sheet).toContainText("Gemini isn’t configured on this server");
   const images = sheet.locator("figure img");
   await expect(images).toHaveCount(2);
@@ -50,11 +51,28 @@ test("changing the range recomputes counts from recorded days", async ({ page })
 test("visitor reports need saved check-ins and never invent content for an empty range", async ({ page }) => {
   // With no saved preference the report reads the same default store as the check-in page (this browser).
   await page.goto("/report");
-  await page.getByRole("button", { name: "Your check-ins" }).click();
-  await expect(page.getByRole("heading", { name: /No saved check-ins between/ })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Go to the check-in" })).toHaveAttribute("href", "/");
+  await chooseProfile(page, "You");
+  await expect(page.getByRole("heading", { name: "No check-ins in this date range" })).toBeVisible();
+  await expect(page.getByText("Your appointment report", { exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Create a check-in" })).toHaveAttribute("href", "/check-in");
   await expect(page.locator("article")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Print or save as PDF" })).toBeDisabled();
+  await page.screenshot({ path: "test-results/report-empty.png", fullPage: true });
+  const aligned = await page.evaluate(() => {
+    const status = document.querySelector("[class*=profileStatus]")!.getBoundingClientRect();
+    const calendar = document.querySelector("[class*=dates] input")!.getBoundingClientRect();
+    return Math.abs(status.top + status.height / 2 - (calendar.top + calendar.height / 2));
+  });
+  expect(aligned).toBeLessThanOrEqual(1);
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.screenshot({ path: "test-results/report-empty-390.png", fullPage: true });
+});
+
+test("empty Maya report offers its full synthetic sample", async ({ page }) => {
+  await page.goto("/report?profile=maya&from=2026-11-01&to=2026-11-02");
+  await expect(page.getByRole("heading", { name: "No check-ins in this date range" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "View the full sample report" })).toHaveAttribute("href", "/report?profile=maya&from=2026-09-06&to=2026-10-17");
 });
 
 test("printing shows only the report and fits one A4 and one US Letter page", async ({ page }) => {

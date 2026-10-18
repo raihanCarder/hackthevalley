@@ -25,7 +25,7 @@ Use ordinary PostgreSQL tables; Tiger Data, TimescaleDB, hypertables, and a time
 - Save the actual paint maps as well as region statistics so playback restores the original markings.
 - Distinguish a missing check-in from an explicitly saved empty map. Label Maya's records as synthetic.
 - Voice capture, automatic note extraction, and extra charts in the printable report are deferred optional work. The timeline's basic regional trends and comparison view are core MVP features.
-- Retain browser-local IndexedDB and explicitly selected local PostgreSQL with temporary visitor sessions. Google Gemini is included; the user supplies the key/model. Production authentication and clinical deployment are outside scope.
+- The current approved flow exposes exactly You (one persistent journal in local PostgreSQL on this device) and Maya (fixed synthetic read-only data), switched through the profile icon. Preserve historical IndexedDB/visitor data without exposing those older storage/session choices in the active UI. Google Gemini is included; the user supplies the key/model. Production authentication and clinical deployment are outside scope.
 - The user has authorized implementation and integration of the full checklist. Check off only verified completion gates; record unavailable live-provider or demo-device checks accurately.
 - Product scope: [proposal](openspec/changes/pain-map-journal/proposal.md).
 - Architecture and stack: [design](openspec/changes/pain-map-journal/design.md).

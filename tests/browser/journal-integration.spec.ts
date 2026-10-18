@@ -1,4 +1,5 @@
-import { test, expect, type Page } from "@playwright/test";
+import { chooseProfile } from "./profiles";
+import { test, expect, type Page } from "./local-fixture";
 import { landmark } from "./body-landmarks";
 
 // Named views stand 2.9 m from the orbit target (0, 1, 0) with a 40° vertical field of view.
@@ -17,7 +18,7 @@ async function paintFront(page: Page, from: [number, number, number], to: [numbe
 }
 const observations = (page: Page) => page.locator("canvas").getAttribute("data-observations");
 
-test("a painted check-in saves to the browser, restores exactly after reload, and appears in the visitor report", async ({ page }) => {
+test("a painted check-in saves to PostgreSQL, restores exactly after reload, and appears in Your report", async ({ page }) => {
   await page.goto("/check-in");
   await expect(page.locator(".scene-mount")).toHaveAttribute("data-status", "ready");
   await expect(page.getByText("No check-in recorded", { exact: true })).toBeVisible();
@@ -26,6 +27,7 @@ test("a painted check-in saves to the browser, restores exactly after reload, an
   await expect(page.getByText("No check-in recorded", { exact: true })).toBeVisible();
 
   await page.getByRole("link", { name: "Check-in", exact: true }).click();
+  await page.getByRole("button", { name: "Paint", exact: true }).click();
   await page.locator("label", { hasText: "Burning" }).click();
   await paintFront(page, landmark("left-thigh-upper"), landmark("left-thigh-lower"));
   await expect.poll(() => observations(page)).toContain("left-thigh:burning");
@@ -49,7 +51,7 @@ test("a painted check-in saves to the browser, restores exactly after reload, an
 
   // The report reads the same saved entry (not the editor draft).
   await page.goto("/report");
-  await page.getByRole("button", { name: "Your check-ins" }).click();
+  await chooseProfile(page, "You");
   await page.getByLabel("From", { exact: true }).fill("2026-10-10");
   await page.getByLabel("To", { exact: true }).fill("2026-10-16");
   const sheet = page.locator("article");
@@ -67,11 +69,23 @@ test("model and details tabs preserve the same live editor and unsaved note", as
   const selectedControl = page.getByRole("group", { name: "Body map tools", exact: true }).locator('[aria-pressed="true"]');
   await expect(page.getByRole("link", { name: "Check-in details", exact: true })).toHaveCount(0);
   await expect(selectedControl).toHaveText("Rotate");
+  const brushControls = page.getByRole("group", { name: "Brush controls", exact: true });
+  await expect(brushControls).toBeHidden();
+  await page.getByRole("button", { name: "Paint", exact: true }).click();
+  await expect(brushControls).toBeVisible();
+  await expect(page.getByRole("group", { name: "Camera views", exact: true })).toBeHidden();
+  await expect(page.getByRole("group", { name: "Zoom to a body part", exact: true })).toBeHidden();
   await page.locator("label", { hasText: "Burning" }).click();
   await paintFront(page, landmark("left-thigh-upper"), landmark("left-thigh-lower"));
   const painted = await observations(page);
   expect(painted).toContain("left-thigh:burning");
   await expect(selectedControl).toHaveText("Paint");
+  await page.getByRole("button", { name: "Rotate", exact: true }).click();
+  await expect(brushControls).toBeHidden();
+  await expect(page.getByRole("group", { name: "Camera views", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Paint", exact: true }).click();
+  await expect(brushControls).toBeVisible();
+  await expect(page.getByRole("radio", { name: "Burning", exact: false })).toBeChecked();
   await page.getByRole("button", { name: "Body", exact: true }).click();
   await expect(selectedControl).toHaveText("Body");
   await expect(page.getByRole("region", { name: "Body shape", exact: true })).toBeVisible();

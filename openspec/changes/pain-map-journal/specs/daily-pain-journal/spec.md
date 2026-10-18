@@ -35,25 +35,26 @@ The system SHALL distinguish an explicitly saved empty map from a date with no e
 - **THEN** that date is recorded as having no painted pain
 - **AND** absent dates remain labeled as having no check-in
 
-### Requirement: Reliable saves and storage disclosure
-The system SHALL identify browser-local versus PostgreSQL storage when both modes are provided. A save SHALL be reported successful only after the selected store acknowledges it. Failed saves SHALL preserve the draft and provide a retry action without silently changing the selected store. PostgreSQL persistence SHALL NOT require a time-series extension or a particular hosting vendor.
+### Requirement: Reliable local saves
+The system SHALL save You's check-ins to PostgreSQL on this device and acknowledge success only after commit. Failed saves SHALL preserve the draft and offer retry. Historical browser and visitor records SHALL remain intact without automatic import or fallback writes.
 
-#### Scenario: Server storage is unavailable
-- **WHEN** a check-in cannot be saved to the selected server store
-- **THEN** the draft remains editable and the interface reports that it is unsaved
-- **AND** the user can retry without producing duplicate daily entries
+#### Scenario: Database write fails
+- **WHEN** PostgreSQL rejects a save
+- **THEN** the painting and note remain an unsaved draft with retry
+- **AND** no browser-storage fallback records the check-in
 
-#### Scenario: Browser storage fails
-- **WHEN** browser storage rejects a write
-- **THEN** the interface reports the failure and retains the in-memory draft
+### Requirement: Two device-local profiles
+The system SHALL expose exactly You and Maya through an accessible profile-icon menu shared across screens. You SHALL use one persistent local profile independent of cookies and browser restarts. Maya SHALL use immutable synthetic data. Switching profiles SHALL preserve You's in-memory editor draft and prevent stale asynchronous results from appearing under the other profile.
 
-### Requirement: Isolated demo profiles
-The system SHALL visibly separate temporary visitor check-ins from the read-only synthetic Maya profile. It SHALL prevent one visitor session from retrieving or overwriting another session's server-stored entries and SHALL avoid sending notes to external AI without an explicit note-processing or report action.
+#### Scenario: Reopen You
+- **WHEN** a browser reconnects after restarting or clearing its preferences
+- **THEN** You opens the same journal in local PostgreSQL
+- **AND** no temporary identity is required
 
 #### Scenario: Switch to Maya
-- **WHEN** a user switches from their visitor profile to Maya
-- **THEN** Maya's synthetic records are labeled and cannot overwrite visitor entries
-- **AND** returning to the visitor profile restores that profile's records
+- **WHEN** You switches to Maya through the profile icon
+- **THEN** the body, history, and report show Maya's labeled read-only sample
+- **AND** switching back restores You's editor draft without saving it
 
 ### Requirement: Optional note extraction
 If note extraction is enabled, the system SHALL extract only explicitly mentioned triggers, medications, activities, and reported relief into editable structured fields. It SHALL retain the source note, require review before saving extracted fields, and preserve the note when extraction fails. Voice capture is optional and SHALL NOT block written check-ins.

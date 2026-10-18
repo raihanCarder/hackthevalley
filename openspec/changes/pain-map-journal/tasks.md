@@ -118,7 +118,7 @@ All four owners supply their feature's passing checks and assist with the assemb
 
 - [x] 6.1 Run focused automated checks for map round trips, region attribution, daily upserts, missing days, playback cancellation, regional trends, date comparisons, and report evidence, plus the Next.js production build; verify the checks pass with no external credentials required.
 - [x] 6.2 Rehearse visitor 3D painting → Maya's six-week playback → regional trends/date comparison → supporting appointment report in desktop and narrow touch layouts; visually review the application UI against `frontend-design` and verify both selling points work clearly, with no console errors, clipped controls, profile leaks, or mismatches between maps and analysis/report observations.
-- [ ] 6.3 Rehearse the same path against local PostgreSQL with Gemini unavailable and, if included/configured, live Gemini; verify storage and summary labels accurately identify each mode and failed database saves retain the draft.
+- [x] 6.3 Rehearse the same path against local PostgreSQL with Gemini unavailable and, if included/configured, live Gemini; verify storage and summary labels accurately identify each mode and failed database saves retain the draft.
 
 ## Deferred optional increments
 
@@ -129,3 +129,14 @@ All four owners supply their feature's passing checks and assist with the assemb
 
 - Use the approved four-owner assignments when applying future tasks. This planning revision itself implements no additional feature; each owner works only on their assigned requested task and commits, pushes, and creates a PR under the user's Git workflow. Merge only with explicit permission.
 - Archive the change only after implementation is complete and the user requests the archive workflow; identify any deliberately deferred optional work accurately.
+
+## 7. Approved local two-profile journal
+
+This follow-up supersedes the earlier browser-default storage and temporary visitor UI: the application now exposes exactly You (one persistent local PostgreSQL journal) and Maya (immutable sample). Existing historical stores remain intact.
+
+- [x] 7.1 Migrate persistent journal ownership independently from visitor sessions; start local PostgreSQL and verify durable saves, replacement, rollback, and preservation of legacy records.
+- [x] 7.2 Add the shared accessible You/Maya profile menu, read-only Maya check-in view, draft-preserving switches, and PostgreSQL-backed history with saved-date navigation.
+- [x] 7.3 Load report evidence on the server for both profiles, carry history ranges into reports, and verify Gemini validation, fallback, retries, and profile/range cancellation.
+- [x] 7.4 Verify the assembled desktop/mobile/print flow, production build, live Gemini outcome, and document setup and observed limits.
+
+Local follow-up acceptance: see `docs/local-journal-verification.md`. The full journal flow, persistent profile migration, responsive profile menu, print output, and fake-provider Gemini checks passed. The live synthetic request returned HTTP 402 after correcting the model ID; the factual fallback and billing message work. Successful live Gemini remains blocked by provider billing/access. Hardware-specific task 2.8 remains unchecked.

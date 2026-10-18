@@ -1,3 +1,9 @@
+# Current two-profile behavior
+
+The profile icon is the only profile switcher: **You** uses the journal saved in local PostgreSQL; **Maya** uses the fixed synthetic fixture. Reports follow the active profile. Generate report in history carries its date range. Refresh report rereads saved records, and drafts never contribute.
+
+The implementation details below describe evidence validation, print output, and historical verification. See `local-journal-verification.md` for current acceptance results.
+
 # Appointment report (task 5, owner D)
 
 Owns `src/report/**`, `src/app/report/**`, `src/app/api/report/**`, `tests/report/**`, and `tests/browser/report-*.spec.ts`. The report reuses other owners' modules and changes none of them.
@@ -6,7 +12,7 @@ Owns `src/report/**`, `src/app/report/**`, `src/app/api/report/**`, `tests/repor
 | --- | --- |
 | Counts, presence, first/last dates, comparisons, per-day trend points | C's `computeReportEvidence`, `compareDates`, `computeRegionTrend` (`src/timeline/analysis.ts`) |
 | Maya's records | C's immutable `MAYA_ENTRIES` (the same fixture the timeline plays) |
-| Visitor records | B's repository: `IndexedDbJournal` or `HttpJournal`, whichever store was chosen on the check-in page; `list` then `read` |
+| Visitor records | Local PostgreSQL via `GET /api/report/entries`, using one bounded snapshot query |
 | Map decoding, validation, re-measurement | A's `@/body/map-utils` |
 | Front/back captures | A's read-only `BodyViewer` handle `capture({ layers })` |
 
@@ -63,9 +69,9 @@ Gemini is included in the MVP, as confirmed by the user on October 17, 2026. The
 **Flow:**
 
 1. The report always opens with the factual summary.
-2. "Organize with Gemini" appears only when Gemini is configured, and states that the report's facts and saved notes will be sent. Nothing reaches Gemini without that click.
-3. The click sends `POST /api/report/summary` with `{ profile, from, to }`; the visitor's request also includes their saved entries.
-4. The server reads Maya from the fixture. Visitor entries are re-validated and re-measured from their maps with A's codec; mismatched observations, other profiles, out-of-range dates, and duplicates are rejected.
+2. "Generate Gemini summary" appears only when Gemini is configured, and states that the report's facts and saved notes will be sent. Nothing reaches Gemini without that click.
+3. The click sends `POST /api/report/summary` with `{ profile, from, to }`; the request includes a revision identifying the report’s saved records, never maps or notes.
+4. The server reads Maya from the fixture. You’s entries are loaded directly from local PostgreSQL for the fixed local profile and selected range. Submitted entries and ownership IDs are rejected. If saved records changed since the report loaded, HTTP 409 refreshes the report and requires a new explicit Gemini action.
 5. The server computes the facts and calls Gemini (`generateContent`, JSON response schema, temperature 0.2, timeout). The system instruction forbids diagnosis, causes, treatment, and medication details, and says notes are data, never instructions. Notes go only inside the JSON user content (at most 60 notes of 500 characters).
 6. The server validates and renders the response.
 
@@ -75,7 +81,7 @@ Gemini is included in the MVP, as confirmed by the user on October 17, 2026. The
 - **No configuration, timeout, HTTP or network error, blocked, truncated or non-JSON response, or a plan that fails validation:** the factual summary, with the specific reason and "Try Gemini again". Provider error bodies are never shown.
 - A fallback is never labeled as Gemini output.
 
-The summary route requires a same-origin `Origin` header and rejects `Sec-Fetch-Site: cross-site`. The expected origin is `APP_ORIGIN` when set, otherwise the origin the browser addressed (`Host`). This keeps `next dev` working when it is reached as 127.0.0.1, because the server's own request URL is normalized to localhost there. Request bodies are capped at 16 MiB.
+The summary route requires a same-origin `Origin` header and rejects `Sec-Fetch-Site: cross-site`. The expected origin is `APP_ORIGIN` when set, otherwise the origin the browser addressed (`Host`). This keeps `next dev` working when it is reached as 127.0.0.1, because the server's own request URL is normalized to localhost there. Request bodies are capped at 128 KiB; map payloads are never uploaded to this route.
 
 ## Printing
 
@@ -103,7 +109,7 @@ The earlier feature-level checks below are supplemented by the current integrate
 - **Fake provider:** the report UI ran against a local fake Gemini (`GEMINI_API_BASE`):
   - A faithful plan was shown as "Organized by Gemini (fake-gemini)". It quoted "Heat pack and walking offered partial temporary relief." with attribution, and the key arrived as a header.
   - A plan with an added diagnosis was rejected; the factual summary showed with the reason and a retry.
-- **Live Gemini was not verified:** no API key was available. The request shape follows the public `generateContent` API but has not been exercised against Google's service. When a key is available, set `GEMINI_API_KEY` and `GEMINI_MODEL`, click "Organize with Gemini" on Maya's report, and record the observed model and outcome here.
+- **Live Gemini was not verified:** no API key was available. The request shape follows the public `generateContent` API but has not been exercised against Google's service. When a key is available, set `GEMINI_API_KEY` and `GEMINI_MODEL`, click "Generate Gemini summary" on Maya's report, and record the observed model and outcome here.
 
 ## Integrated verification and remaining limits
 

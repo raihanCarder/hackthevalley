@@ -104,7 +104,9 @@ async function requestPlan(facts: ReportFacts, config: GeminiConfig, fetcher: ty
       throw new GeminiFailure("provider-error", "Gemini could not be reached.");
     }
     // Provider error bodies are not shown or logged: they can echo request details.
-    if (!response.ok) throw new GeminiFailure("provider-error", `Gemini returned HTTP ${response.status}.`);
+    if (!response.ok) throw new GeminiFailure("provider-error", response.status === 402
+      ? "Gemini requires billing or available credits (HTTP 402)."
+      : `Gemini returned HTTP ${response.status}.`);
     let body: { candidates?: { content?: { parts?: { text?: string }[] }; finishReason?: string }[]; promptFeedback?: { blockReason?: string } };
     try { body = await response.json(); }
     catch (error) {
