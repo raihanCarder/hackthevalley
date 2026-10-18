@@ -302,6 +302,22 @@
   position: relative;
 }
 
+.stageBody {
+  transition: opacity 160ms ease;
+}
+
+.stageBody[data-gap] {
+  opacity: 0.35;
+}
+
+.stageBanner {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  right: 16px;
+  margin: 0;
+}
+
 /* 2D Body Diagram */
 .diagramStage {
   display: flex;
