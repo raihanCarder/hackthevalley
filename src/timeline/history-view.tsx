@@ -113,7 +113,10 @@ function ProfileHistory({ activeProfileId }: { activeProfileId: "maya" | "visito
     for (const date of allDates.slice(index + 1, index + 3)) void loader.load(date, abort.signal).catch(() => {});
     return () => abort.abort();
   }, [loader, currentDate, allDates]);
-  const selectedMap = loaded?.loader === loader && loaded.date === currentDate ? loaded.value : null;
+  // The last loaded day stays on screen until the next one arrives, so playback never blanks or remounts the body.
+  const shown = loaded?.loader === loader ? loaded : null;
+  const shownDate = shown?.date ?? currentDate;
+  const switchingDay = Boolean(shown) && shownDate !== currentDate;
   // Playback state
   const [isPlaying, setIsPlaying] = useState(false);
   const [speedMs, setSpeedMs] = useState(1000);
@@ -139,8 +142,8 @@ function ProfileHistory({ activeProfileId }: { activeProfileId: "maya" | "visito
     return map;
   }, [entries]);
 
-  // Active entry on current date
-  const currentEntry = selectedMap?.entry ?? null;
+  // Entry for the day on screen (null for an unrecorded gap)
+  const currentEntry = shown?.value.entry ?? null;
   const currentSummary = entryMap.get(currentDate) ?? null;
   const visitorUnavailable = !isSynthetic && (!repository || historyLoading || Boolean(historyError));
 
@@ -406,21 +409,26 @@ function ProfileHistory({ activeProfileId }: { activeProfileId: "maya" | "visito
                 }}
               />
             ) : (
-              <div className={styles.canvasStage}>
+              <div className={styles.canvasStage} aria-busy={switchingDay}>
                 {visitorUnavailable ? <p role="status">{historyError ? "Saved maps are unavailable from local PostgreSQL." : "Loading saved history…"}</p>
                   : mapError ? <p role="alert">This saved map cannot be shown: {mapError}</p>
-                  : !selectedMap && (isSynthetic || repository) ? <p role="status">Loading saved map…</p>
-                  : currentEntry ? <BodyViewer layers={selectedMap?.layers ?? null} label={`Saved map for ${currentDate}`} shape={viewerShape} />
-                  : <p className={styles.missingStateBanner}>No check-in recorded for this date. No map is attributed to this day.</p>}
+                  : !shown ? <p role="status">Loading saved map…</p>
+                  : <>
+                    {/* One viewer for every day: unrecorded gaps show a blank, dimmed body under the banner. */}
+                    <div className={styles.stageBody} data-gap={currentEntry ? undefined : ""}>
+                      <BodyViewer layers={shown.value.layers} label={currentEntry ? `Saved map for ${shownDate}` : `No map recorded for ${shownDate}`} shape={viewerShape} />
+                    </div>
+                    {!currentEntry && <p className={`${styles.missingStateBanner} ${styles.stageBanner}`}>No check-in recorded for this date. No map is attributed to this day.</p>}
+                  </>}
               </div>
             )}
           </div>
 
           {/* Active Date Card: Note & Regional Observations */}
-          <div className={styles.activeDayCard}>
+          <div className={styles.activeDayCard} aria-busy={switchingDay}>
             <div className={styles.activeDayHeader}>
-              <h2 className={styles.activeDayTitle}>Check-in for {formatDisplayDate(currentDate)}</h2>
-              {visitorUnavailable ? <span>History unavailable</span> : currentSummary && !selectedMap ? <span role="status">Opening saved check-in…</span> : currentEntry ? (
+              <h2 className={styles.activeDayTitle}>Check-in for {formatDisplayDate(shownDate)}</h2>
+              {visitorUnavailable ? <span>History unavailable</span> : !shown ? <span role="status">Opening saved check-in…</span> : currentEntry ? (
                 currentEntry.observations.length === 0 ? (
                   <span style={{ fontSize: "12px", color: "var(--muted)" }}>Explicitly empty check-in</span>
                 ) : (
@@ -435,7 +443,7 @@ function ProfileHistory({ activeProfileId }: { activeProfileId: "maya" | "visito
               )}
             </div>
 
-            {visitorUnavailable ? <p>Saved entries must be loaded before this date can be inspected.</p> : currentSummary && !selectedMap ? <p role="status">Loading the saved map and note…</p> : currentEntry ? (
+            {visitorUnavailable ? <p>Saved entries must be loaded before this date can be inspected.</p> : !shown ? <p role="status">Loading the saved map and note…</p> : currentEntry ? (
               <>
                 {/* Note */}
                 {currentEntry.note && (
