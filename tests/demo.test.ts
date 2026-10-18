@@ -112,13 +112,13 @@ test("Maya notes reflect the sitting and partial-relief narrative", () => {
 });
 
 test("Maya's saved maps go through the body pipeline: paint lies on the body and re-measures to the stored observations", async () => {
-  const { decodePaintSnapshot, getBodyAtlas, reduceRegions, PRESENCE_THRESHOLD } = await import("../src/body/map-utils");
-  const atlas = getBodyAtlas();
+  const { decodePaintSnapshot, getRegionRaster, reduceRegions, PRESENCE_THRESHOLD } = await import("../src/body/map-utils");
+  const atlas = getRegionRaster();
   for (const entry of MAYA_ENTRIES) {
     const layers = await decodePaintSnapshot(entry.maps);
     for (const layer of Object.values(layers)) {
       for (let texel = 0; texel < layer.length; texel++) {
-        if (layer[texel] >= PRESENCE_THRESHOLD) assert.ok(atlas.islandOf[texel] >= 0, `${entry.localDate}: paint outside the body at texel ${texel}`);
+        if (layer[texel] >= PRESENCE_THRESHOLD) assert.ok(atlas.regionOf[texel] >= 0, `${entry.localDate}: paint outside the body at texel ${texel}`);
       }
     }
     assert.deepEqual(reduceRegions(layers, atlas), entry.observations, `${entry.localDate}: stored observations match the shared reducer`);
