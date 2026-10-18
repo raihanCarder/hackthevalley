@@ -328,13 +328,16 @@ test("navigation releases renderer resources and a remounted editor still paints
     await page.getByRole("link", { name: "History", exact: true }).click();
     await expect(page.getByRole("region", { name: "Body map", exact: true })).toHaveCount(0);
     await expect(page.getByText("You have not saved any check-ins in this range yet.", { exact: true })).toBeVisible();
-    await expect.poll(async () => (await stats()).live).toBe(0);
-    expect((await stats()).handles).toBe(0);
+    // Empty history still mounts a read-only body; wait for it instead of the transient gap between scenes.
+    await expect(page.locator(".scene-mount")).toHaveAttribute("data-status", "ready");
+    await expect.poll(async () => (await stats()).live).toBe(1);
+    expect((await stats()).handles).toBe(1);
     await expect.poll(() => page.evaluate(() => {
       const state = globalThis as unknown as { __painJournalBodyScenes: Stats; previousEditorHandle?: unknown };
       return state.__painJournalBodyScenes.handles.has(state.previousEditorHandle);
     })).toBe(false);
     await page.getByRole("link", { name: "Check-in", exact: true }).click();
+    await expect(page.getByRole("region", { name: "Body map", exact: true })).toBeVisible();
     await expect(page.locator(".scene-mount")).toHaveAttribute("data-status", "ready");
   }
   const final = await stats();
