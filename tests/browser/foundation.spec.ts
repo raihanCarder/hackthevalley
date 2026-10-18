@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./local-fixture";
 import { BODY_MAP_VERSION } from "../../src/domain/contracts";
 
 test("deep links, Node route, and browser-only renderer load without hydration errors", async ({ page, request }) => {
@@ -44,6 +44,9 @@ test("camera reaches named views and Paint mode blocks pointer, wheel, and keybo
   await drag(); await page.mouse.wheel(0, 150); await canvas.focus(); await page.keyboard.press("ArrowLeft");
   expect(await canvas.getAttribute("data-camera")).toBe(beforePaint);
   await expect(page.getByRole("button", { name: "Paint", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("group", { name: "Camera views", exact: true })).toBeHidden();
+  await expect(page.getByRole("group", { name: "Zoom to a body part", exact: true })).toBeHidden();
+  await page.getByRole("button", { name: "Rotate", exact: true }).click();
   await page.getByRole("button", { name: "Back", exact: true }).click();
   expect(await canvas.getAttribute("data-camera")).toBe(positions[0]);
 });

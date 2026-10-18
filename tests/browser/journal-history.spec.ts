@@ -1,7 +1,8 @@
-import { test, expect, type Page } from "@playwright/test";
+import { chooseProfile } from "./profiles";
+import { test, expect, type Page } from "./local-fixture";
 import { landmark, project } from "./body-landmarks";
 
-const storage = process.env.TEST_JOURNAL_STORAGE === "postgresql" ? "postgresql" : "indexeddb";
+const storage = "postgresql";
 async function ready(page: Page) {
   await expect(page.locator(".scene-mount")).toHaveAttribute("data-status", "ready");
   await expect(page.getByRole("button", { name: "Save check-in", exact: true })).toBeEnabled();
@@ -44,7 +45,6 @@ async function assembledJournal(page: Page) {
   const errors: string[] = [];
   page.on("pageerror", e => errors.push(e.message));
   await page.goto("/check-in");
-  await page.getByLabel("Save location").selectOption(storage);
   await ready(page);
   const date = page.getByLabel("Check-in date", { exact: true });
   const note = page.getByLabel("A note for this day", { exact: false });
@@ -59,14 +59,16 @@ async function assembledJournal(page: Page) {
   expect(await fingerprints(page)).toEqual(original);
   await note.fill("Updated saved context."); await save(page);
   await page.getByRole("link", { name: "History", exact: true }).click();
-  await page.getByRole("button", { name: "Visitor (My Journal)" }).click();
+  await chooseProfile(page, "You");
   await page.getByLabel("History from").fill("2026-10-15");
   await expect(page.getByRole("button", { name: "Play timeline playback" })).toBeDisabled();
   await page.getByRole("slider", { name: "Scrub calendar dates" }).fill("0");
   await expect(page.getByText("Updated saved context.", { exact: true })).toBeVisible();
   expect(await fingerprints(page)).toEqual(original);
-  await page.getByRole("button", { name: "Maya (Synthetic Demo)" }).click();
-  await page.getByRole("button", { name: "Visitor (My Journal)" }).click();
+  await chooseProfile(page, "Maya");
+  await chooseProfile(page, "You");
+  await page.getByLabel("History from").fill("2026-10-15");
+  await page.getByRole("slider", { name: "Scrub calendar dates" }).fill("0");
   await expect(page.locator("[data-history-root]")).toHaveAttribute("data-selected-date", "2026-10-15");
   await expect(page.getByText("Updated saved context.", { exact: true })).toBeVisible();
   await page.getByRole("link", { name: "Check-in", exact: true }).click();
@@ -86,7 +88,7 @@ async function assembledJournal(page: Page) {
   // An unsaved date must not appear in the report.
   await date.fill("2026-10-19"); await note.fill("UNSAVED DRAFT MUST NOT APPEAR");
   await page.getByRole("link", { name: "History", exact: true }).click();
-  await page.getByRole("button", { name: "Visitor (My Journal)" }).click();
+  await chooseProfile(page, "You");
   await page.getByLabel("History to").fill("2026-10-19");
   await page.getByLabel("History from").fill("2026-10-15");
   await expect(page.getByText("0 / 3", { exact: true })).toBeVisible(); // selected lower back has no marks
@@ -103,7 +105,7 @@ async function assembledJournal(page: Page) {
   await page.getByLabel("Later Date (B)").selectOption("2026-10-18");
   await expect(page.getByRole("region", { name: "Saved map comparison" })).toContainText("no longer marked");
   await page.getByRole("link", { name: "Appointment report", exact: true }).click();
-  await page.getByRole("button", { name: "Your check-ins" }).click();
+  await chooseProfile(page, "You");
   await page.getByLabel("To", { exact: true }).fill("2026-10-19");
   await page.getByLabel("From", { exact: true }).fill("2026-10-15");
   await expect(page.locator("article dl")).toContainText("Days with a check-in3 of 5");
@@ -114,6 +116,18 @@ async function assembledJournal(page: Page) {
 }
 
 test(`assembled ${storage} painting, exact reload, copy, missing/empty history, comparison and saved-only report`, async ({ page }) => assembledJournal(page));
+test("switching through Maya preserves You's exact unsaved painting and note", async ({ page }) => {
+  await page.goto("/check-in"); await ready(page);
+  await paintCalf(page);
+  const before = await fingerprints(page);
+  await page.getByLabel("A note for this day", { exact: false }).fill("Unsaved painting and note.");
+  await chooseProfile(page, "Maya");
+  await expect(page.getByText("Maya’s synthetic sample, shown as recorded.", { exact: true })).toBeVisible();
+  await chooseProfile(page, "You");
+  expect(await fingerprints(page)).toEqual(before);
+  await expect(page.getByLabel("A note for this day", { exact: false })).toHaveValue("Unsaved painting and note.");
+  await expect(page.getByText("Unsaved draft", { exact: true })).toBeVisible();
+});
 test.describe("narrow touch integration", () => {
   test.use({ hasTouch: true, viewport: { width: 390, height: 900 } });
   test(`touch painting through ${storage} history, comparison and report`, async ({ page }) => {
@@ -124,55 +138,28 @@ test.describe("narrow touch integration", () => {
 });
 
 
-test("a rejected browser write preserves the real painted draft and retries in the same store", async ({ page }) => {
-  await page.goto("/check-in"); await page.getByLabel("Save location").selectOption("indexeddb"); await ready(page);
+test("rejected PostgreSQL writes retain the real painted draft, and browsers share You", async ({ page, browser, baseURL }) => {
+  await page.goto("/check-in"); await ready(page);
+  await page.getByLabel("Check-in date", { exact: true }).fill("2026-10-14");
   await paintCalf(page);
-  await page.getByLabel("A note for this day", { exact: false }).fill("Keep this note and painting.");
   const before = await fingerprints(page);
-  await page.evaluate(() => {
-    const original = IDBDatabase.prototype.transaction;
-    IDBDatabase.prototype.transaction = function (...args: Parameters<typeof original>) {
-      if (args[1] === "readwrite") throw new DOMException("Test quota rejection", "QuotaExceededError");
-      return original.apply(this, args);
-    };
-    (window as unknown as { restoreTransaction: () => void }).restoreTransaction = () => { IDBDatabase.prototype.transaction = original; };
-  });
+  await page.getByLabel("A note for this day", { exact: false }).fill("Server retry note");
+  await page.route("**/api/entries/2026-10-14", route => route.request().method() === "PUT"
+    ? route.fulfill({ status: 503, json: { error: { code: "unavailable", message: "Database write rejected" } } }) : route.continue());
   await page.getByRole("button", { name: "Save check-in", exact: true }).click();
   await expect(page.getByRole("alert").filter({ hasText: "Your draft is still here" })).toBeVisible();
   expect(await fingerprints(page)).toEqual(before);
-  await expect(page.getByLabel("Save location")).toHaveValue("indexeddb");
-  await page.evaluate(() => (window as unknown as { restoreTransaction: () => void }).restoreTransaction());
-  await save(page);
-  await page.reload(); await ready(page);
-  expect(await fingerprints(page)).toEqual(before);
-  await expect(page.getByLabel("A note for this day", { exact: false })).toHaveValue("Keep this note and painting.");
+  await page.unroute("**/api/entries/2026-10-14"); await save(page);
+  const saved = await (await page.request.get(`${baseURL}/api/entries/2026-10-14`)).json();
+  expect(saved.entry.observations.length).toBeGreaterThan(0);
+  const other = await browser.newContext();
+  try {
+    expect(await (await other.request.get(`${baseURL}/api/entries/2026-10-14`)).json()).toEqual(saved);
+    const otherWrite = await other.request.put(`${baseURL}/api/entries/2026-10-14`, { headers: { Origin: baseURL! }, data: { localDate: "2026-10-14", timeZone: saved.entry.timeZone, maps: saved.entry.maps, note: "Same You from another browser" } });
+    expect(otherWrite.ok()).toBeTruthy();
+    expect((await (await page.request.get(`${baseURL}/api/entries/2026-10-14`)).json()).entry.note).toBe("Same You from another browser");
+    expect((await otherWrite.json()).entry.profileId).toBe(saved.entry.profileId);
+    await other.clearCookies();
+    expect((await (await other.request.get(`${baseURL}/api/entries/2026-10-14`)).json()).entry.profileId).toBe("local-you");
+  } finally { await other.close(); }
 });
-
-if (storage === "postgresql") {
-  test("server sessions isolate real saved maps and rejected server writes retain the draft", async ({ page, browser, baseURL }) => {
-    await page.goto("/check-in"); await page.getByLabel("Save location").selectOption("postgresql"); await ready(page);
-    await page.getByLabel("Check-in date", { exact: true }).fill("2026-10-14");
-    await paintCalf(page);
-    const before = await fingerprints(page);
-    await page.getByLabel("A note for this day", { exact: false }).fill("Server retry note");
-    await page.route("**/api/entries/2026-10-14", route => route.request().method() === "PUT"
-      ? route.fulfill({ status: 503, json: { error: { code: "unavailable", message: "Database write rejected" } } }) : route.continue());
-    await page.getByRole("button", { name: "Save check-in", exact: true }).click();
-    await expect(page.getByRole("alert").filter({ hasText: "Your draft is still here" })).toBeVisible();
-    await expect(page.getByLabel("Save location")).toHaveValue("postgresql");
-    expect(await fingerprints(page)).toEqual(before);
-    await page.unroute("**/api/entries/2026-10-14"); await save(page);
-    const saved = await (await page.request.get(`${baseURL}/api/entries/2026-10-14`)).json();
-    expect(saved.entry.observations.length).toBeGreaterThan(0);
-    const other = await browser.newContext();
-    try {
-      expect((await other.request.post(`${baseURL}/api/session`, { headers: { Origin: baseURL! } })).ok()).toBeTruthy();
-      expect(await (await other.request.get(`${baseURL}/api/entries/2026-10-14`)).json()).toEqual({ entry: null });
-      const otherWrite = await other.request.put(`${baseURL}/api/entries/2026-10-14`, { headers: { Origin: baseURL! }, data: { localDate: "2026-10-14", timeZone: saved.entry.timeZone, maps: saved.entry.maps, note: "Other visitor" } });
-      expect(otherWrite.ok()).toBeTruthy();
-      const unchanged = await (await page.request.get(`${baseURL}/api/entries/2026-10-14`)).json();
-      expect(unchanged.entry.note).toBe("Server retry note");
-      expect((await (await otherWrite.json()).entry).profileId).not.toBe(saved.entry.profileId);
-    } finally { await other.close(); }
-  });
-}

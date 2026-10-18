@@ -3,6 +3,8 @@ import { BODY_MAP_VERSION, SCHEMA_VERSION, parseDailyEntry, parseLocalDate } fro
 
 /** Selection is not authorization. Each adapter binds visitor access to its own identity. */
 export type JournalProfile = "visitor" | "maya";
+/** `visitor` is the existing API selection key for the single persistent You profile. */
+export const LOCAL_PROFILE_ID = "local-you";
 export type JournalStorage = "indexeddb" | "postgresql";
 export type EntrySummary = Omit<DailyEntry, "maps" | "note">;
 export interface DateRange { from: LocalDate; to: LocalDate }

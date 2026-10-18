@@ -65,3 +65,11 @@ The system SHALL explain when the selected range contains no saved entries and S
 #### Scenario: Prepare without check-ins
 - **WHEN** a user requests a report for a range containing no saved check-ins
 - **THEN** the interface explains that recorded entries are needed and offers a route to the journal
+
+### Requirement: Server-owned local evidence
+The system SHALL read You's report records from the fixed local PostgreSQL profile and Maya's records from the immutable fixture. A summary request SHALL NOT accept client-supplied records or ownership IDs. If a report's saved-record revision changes, the system SHALL refresh the report and require another explicit Gemini action.
+
+#### Scenario: Saved records changed
+- **WHEN** a check-in changes after the report loads and before its Gemini request
+- **THEN** the server rejects the old revision without calling Gemini
+- **AND** the interface refreshes saved evidence before the user can request a new summary

@@ -1,4 +1,5 @@
-import { test, expect } from "@playwright/test";
+import { chooseProfile } from "./profiles";
+import { test, expect } from "./local-fixture";
 
 test("history page loads with Maya synthetic profile, scrubber, and no console errors", async ({ page }) => {
   const errors: string[] = [];
@@ -7,13 +8,13 @@ test("history page loads with Maya synthetic profile, scrubber, and no console e
     if (message.type() === "error") errors.push(message.text());
   });
 
-  await page.goto("/history");
+  await page.goto("/history?profile=maya");
 
   // Verify page header
   await expect(page.locator("h1")).toContainText("A picture over time");
 
   // Verify Maya profile is active and labeled synthetic
-  await expect(page.getByText("Synthetic · Read-only")).toBeVisible();
+  await expect(page.getByText("Maya · Synthetic sample · Six weeks of check-ins.", { exact: true })).toBeVisible();
   await expect(page.locator("input[type=range]")).toBeVisible();
 
   // Verify default date shows Oct 17, 2026
@@ -28,7 +29,7 @@ test("history page loads with Maya synthetic profile, scrubber, and no console e
 });
 
 test("date scrubbing updates notes and regional observations faithfully", async ({ page }) => {
-  await page.goto("/history");
+  await page.goto("/history?profile=maya");
 
   // Scrub to an early empty day (e.g., Sep 6, 2026 - index 0)
   const slider = page.locator("input[type=range]");
@@ -48,7 +49,7 @@ test("date scrubbing updates notes and regional observations faithfully", async 
 });
 
 test("regional trends tab displays accurate frequency and SVG chart", async ({ page }) => {
-  await page.goto("/history");
+  await page.goto("/history?profile=maya");
 
   // Default region is lower back, aching
   await expect(page.getByText("Recorded-Day Frequency (90.5%)")).toBeVisible();
@@ -68,7 +69,7 @@ test("regional trends tab displays accurate frequency and SVG chart", async ({ p
 });
 
 test("date comparison accurately highlights newly marked regions", async ({ page }) => {
-  await page.goto("/history");
+  await page.goto("/history?profile=maya");
 
   // Click Compare Dates tab
   await page.getByRole("tab", { name: "Compare Dates" }).click();
@@ -89,26 +90,26 @@ test("date comparison accurately highlights newly marked regions", async ({ page
 });
 
 test("switching to visitor profile displays clean empty state without leaking Maya data", async ({ page }) => {
-  await page.goto("/history");
+  await page.goto("/history?profile=maya");
 
   // Switch to Visitor
-  await page.getByRole("button", { name: "Visitor (My Journal)" }).click();
+  await chooseProfile(page, "You");
 
-  await expect(page.getByText("Local Session")).toBeVisible();
+  await expect(page.getByText("Your saved check-ins from PostgreSQL on this device.", { exact: true })).toBeVisible();
   await expect(page.getByText("You have not saved any check-ins in this range yet")).toBeVisible();
   await expect(page.getByRole("link", { name: "Go to 3D check-in to paint pain" })).toBeVisible();
   await expect(page.getByText("Playback disabled")).toBeVisible();
 
   // Switch back to Maya restores Maya
-  await page.getByRole("button", { name: "Maya (Synthetic Demo)" }).click();
-  await expect(page.getByText("Synthetic · Read-only")).toBeVisible();
+  await chooseProfile(page, "Maya");
+  await expect(page.getByText("Maya · Synthetic sample · Six weeks of check-ins.", { exact: true })).toBeVisible();
   await expect(page.getByText("38 / 42")).toBeVisible();
 });
 
 test("history layout is responsive across mobile, tablet, and desktop without overflow", async ({ page }) => {
   for (const width of [390, 768, 1440]) {
     await page.setViewportSize({ width, height: 900 });
-    await page.goto("/history");
+    await page.goto("/history?profile=maya");
     await expect(page.locator("h1")).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await expect(page.locator("canvas").first()).toHaveAttribute("data-revision", /\d+/);
@@ -122,7 +123,7 @@ test("history layout is responsive across mobile, tablet, and desktop without ov
 
 test("Maya plays all 42 dates chronologically, stops at the end, and scrubbing cancels playback", async ({ page }) => {
   test.setTimeout(45_000);
-  await page.goto("/history");
+  await page.goto("/history?profile=maya");
   const slider = page.getByRole("slider", { name: "Scrub calendar dates" });
   await slider.fill("0");
   await expect(page.getByText("Explicitly empty check-in")).toBeVisible();

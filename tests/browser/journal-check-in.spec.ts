@@ -1,6 +1,32 @@
-import { test, expect } from "@playwright/test";
+import { chooseProfile } from "./profiles";
+import { test, expect } from "./local-fixture";
 import { MAYA_ENTRIES } from "../../src/demo/maya";
 const entry = (date: string) => ({ ...MAYA_ENTRIES[0], id: `visitor-${date}`, profileId: "visitor-test", localDate: date });
+
+test("the profile icon exposes exactly You and Maya on phone, tablet, and desktop", async ({ page }) => {
+  for (const width of [390, 768, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/check-in");
+    await expect(page.getByText("Your experience, over time.", { exact: true })).toHaveCount(0);
+    await expect(page.getByText(/saved on this device/i)).toHaveCount(0);
+    const trigger = page.getByRole("button", { name: /^Switch profile, current profile/ });
+    await expect(trigger).toBeEnabled();
+    await trigger.focus(); await page.keyboard.press("Enter");
+    await expect(page.getByRole("menuitemradio")).toHaveCount(2);
+    await page.screenshot({ path: `test-results/profile-menu-${width}.png`, fullPage: true });
+    await page.keyboard.press("Escape");
+    await expect(trigger).toBeFocused();
+    await chooseProfile(page, "Maya");
+    await expect(page.getByText("Maya’s synthetic sample, shown as recorded.", { exact: true })).toBeVisible();
+    await expect(page.getByText(/fixed synthetic sample|sample data · read-only/i)).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Paint", exact: true })).toBeDisabled();
+    await page.getByRole("link", { name: "History", exact: true }).click();
+    await expect(trigger).toHaveAttribute("aria-label", "Switch profile, current profile Maya");
+    await expect(page.getByText("38 / 42")).toBeVisible();
+    await chooseProfile(page, "You");
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  }
+});
 
 test("date-specific notes remain drafts and skipped dates stay unrecorded", async ({ page }) => {
   await page.goto("/check-in");
@@ -16,31 +42,29 @@ test("date-specific notes remain drafts and skipped dates stay unrecorded", asyn
   await date.fill("2026-10-15");
   await expect(note).toHaveValue("A note for the 15th");
   await expect(page.getByRole("button", { name: "Save check-in", exact: true })).toBeEnabled();
-  const count = await page.evaluate(() => new Promise<number>((resolve, reject) => {
-    const open = indexedDB.open("pain-journal-v1");
-    open.onsuccess = () => {
-      const db = open.result;
-      const tx = db.transaction("entries");
-      const request = tx.objectStore("entries").count();
-      request.onsuccess = () => resolve(request.result);
-      tx.oncomplete = () => db.close();
-    };
-    open.onerror = reject;
-  }));
-  expect(count).toBe(0);
+  const saved = await (await page.request.get("/api/entries/2026-10-15")).json();
+  expect(saved.entry).toBeNull();
 });
 
-test("failed server selection keeps the store explicit and preserves the browser draft", async ({ page }) => {
-  await page.route("**/api/session", route => route.fulfill({ status: 503, json: { error: { code: "unavailable", message: "PostgreSQL is unavailable. Your selected store has not changed." } } }));
+test("switching profiles preserves You's draft and Maya cannot be edited", async ({ page }) => {
   await page.goto("/check-in");
   const note = page.getByLabel("A note for this day", { exact: false });
   await expect(page.getByText("No check-in recorded", { exact: true })).toBeVisible();
-  await note.fill("Keep my browser draft");
-  await page.getByLabel("Save location").selectOption("postgresql");
-  await expect(page.getByRole("complementary", { name: "Daily check-in" }).getByRole("alert")).toContainText("PostgreSQL is unavailable");
-  await expect(page.getByLabel("Save location")).toHaveValue("postgresql");
-  await page.getByLabel("Save location").selectOption("indexeddb");
-  await expect(note).toHaveValue("Keep my browser draft");
+  await note.fill("Keep my local journal draft");
+  await chooseProfile(page, "Maya");
+  await expect(page.getByText("Maya’s synthetic sample, shown as recorded.", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Save check-in", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Paint", exact: true })).toBeDisabled();
+  const mayaWorkbench = page.locator(".body-workbench:visible");
+  const mayaNote = mayaWorkbench.getByLabel("A note for this day", { exact: false });
+  await expect(mayaNote).toHaveAttribute("readonly", "");
+  const sampleDate = mayaWorkbench.getByLabel("Check-in date", { exact: true });
+  await sampleDate.fill("2026-10-10");
+  await expect(mayaNote).toHaveValue(/spread downward from my left thigh into my calf/i);
+  await expect(mayaWorkbench.locator("canvas")).toHaveAttribute("data-observations", /left-calf:burning/);
+  await page.screenshot({ path: "test-results/maya-check-in-workbench.png", fullPage: true });
+  await chooseProfile(page, "You");
+  await expect(note).toHaveValue("Keep my local journal draft");
   await expect(page.getByText("Unsaved draft", { exact: true })).toBeVisible();
 });
 
@@ -55,7 +79,6 @@ test("late server reads do not replace a newer selected date", async ({ page }) 
     await route.fulfill({ json: { entry: saved } }).catch(() => {});
   });
   await page.goto("/check-in");
-  await page.getByLabel("Save location").selectOption("postgresql");
   const date = page.getByLabel("Check-in date", { exact: true });
   const note = page.getByLabel("A note for this day", { exact: false });
   await expect(page.getByText("Saved check-in", { exact: true })).toBeVisible();
@@ -67,15 +90,16 @@ test("late server reads do not replace a newer selected date", async ({ page }) 
   await expect(note).toHaveValue("Saved note for 2026-10-16");
 });
 
-test("a failed PostgreSQL selection remains selected after reload", async ({ page }) => {
-  await page.route("**/api/session", route => route.fulfill({ status: 503, json: { error: { code: "unavailable", message: "PostgreSQL is unavailable." } } }));
+test("unavailable PostgreSQL stays explicit after reload and offers retry", async ({ page }) => {
+  await page.route("**/api/entries/*?profile=visitor", route => route.fulfill({ status: 503, json: { error: { code: "unavailable", message: "PostgreSQL is unavailable." } } }));
   await page.goto("/check-in");
-  await expect(page.getByLabel("Save location")).toHaveValue("indexeddb");
-  await page.getByLabel("Save location").selectOption("postgresql");
   await expect(page.getByText("PostgreSQL is unavailable.", { exact: true })).toBeVisible();
   await page.reload();
-  await expect(page.getByLabel("Save location")).toHaveValue("postgresql");
   await expect(page.getByText("PostgreSQL is unavailable.", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Retry opening check-in" })).toBeVisible();
+  await page.unroute("**/api/entries/*?profile=visitor");
+  await page.getByRole("button", { name: "Retry opening check-in" }).click();
+  await expect(page.getByText("No check-in recorded", { exact: true })).toBeVisible();
 });
 
 test("typing while a saved entry loads preserves the newer note as unsaved", async ({ page }) => {
@@ -88,8 +112,6 @@ test("typing while a saved entry loads preserves the newer note as unsaved", asy
     await route.fulfill({ json: { entry: { ...entry(date), note: "Older saved note" } } }).catch(() => {});
   });
   await page.goto("/check-in");
-  await expect(page.getByLabel("Save location")).toHaveValue("indexeddb");
-  await page.getByLabel("Save location").selectOption("postgresql");
   await expect(page.getByText("Opening check-in…", { exact: true })).toBeVisible();
   const note = page.getByLabel("A note for this day", { exact: false });
   await note.fill("Keep this newer note");
@@ -120,15 +142,15 @@ test("API rejects cross-origin writes, Maya writes, invalid dates, and unbounded
 
 test("unavailable PostgreSQL history is never labeled browser storage, empty history, or missing observations", async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem("pain-journal-storage", "postgresql"));
-  await page.route("**/api/session", route => route.fulfill({ status: 503, json: { error: { code: "unavailable", message: "PostgreSQL is unavailable." } } }));
+  await page.route("**/api/entries?*", route => route.fulfill({ status: 503, json: { error: { code: "unavailable", message: "PostgreSQL is unavailable." } } }));
   await page.goto("/history");
-  await page.getByRole("button", { name: "Visitor (My Journal)" }).click();
+  await chooseProfile(page, "You");
   await expect(page.getByRole("alert").filter({ hasText: "PostgreSQL is unavailable" })).toBeVisible();
   await expect(page.getByText("History unavailable", { exact: true })).toBeVisible();
   await expect(page.getByText("Visitor records from this browser", { exact: false })).toHaveCount(0);
   await expect(page.getByText("No check-in recorded for this date.", { exact: true })).toHaveCount(0);
   await expect(page.getByText("You have not saved any check-ins in this range yet.", { exact: true })).toHaveCount(0);
   await expect(page.getByRole("tabpanel")).toHaveCount(0);
-  await page.getByRole("button", { name: "Maya (Synthetic Demo)" }).click();
+  await chooseProfile(page, "Maya");
   await expect(page.getByText("38 / 42")).toBeVisible();
 });

@@ -21,14 +21,14 @@ const PROPORTIONS: SliderSpec[] = [
 const AGE: SliderSpec = { id: "age", label: "Age", low: "25", high: "70" };
 
 /** Optional body-shape sliders. The shape only changes how the body looks; marks and measurements stay the same. */
-export function BodyShapePanel({ shape, onChange }: { shape: BodyShape; onChange(next: BodyShape): void }) {
+export function BodyShapePanel({ shape, onChange, disabled = false }: { shape: BodyShape; onChange(next: BodyShape): void; disabled?: boolean }) {
   const id = useId();
   const slider = (spec: SliderSpec) => {
     const value = shape[spec.id];
     const describe = (n: number) => spec.id === "age" ? `about ${Math.round(25 + n * 45)} years` : n < .45 ? spec.low.toLowerCase() : n > .55 ? spec.high.toLowerCase() : "average";
     return <div key={spec.id} className={styles.shapeSlider}>
       <label htmlFor={`${id}-${spec.id}`}>{spec.label}</label>
-      <input id={`${id}-${spec.id}`} type="range" min={0} max={1} step={.01} value={value} aria-valuetext={describe(value)}
+      <input id={`${id}-${spec.id}`} type="range" min={0} max={1} step={.01} value={value} disabled={disabled} aria-valuetext={describe(value)}
         onChange={event => onChange({ ...shape, [spec.id]: Number(event.target.value) })} />
       <div className={styles.scale} aria-hidden="true"><span>{spec.low}</span><span>{spec.high}</span></div>
     </div>;
@@ -44,7 +44,7 @@ export function BodyShapePanel({ shape, onChange }: { shape: BodyShape; onChange
       <summary>More options</summary>
       <div className={styles.shapeGrid}>{slider(AGE)}</div>
     </details>
-    <button type="button" className={styles.shapeReset} disabled={isDefaultShape(shape)} onClick={() => onChange(DEFAULT_BODY_SHAPE)}>
+    <button type="button" className={styles.shapeReset} disabled={disabled || isDefaultShape(shape)} onClick={() => onChange(DEFAULT_BODY_SHAPE)}>
       <RotateCcw size={16} strokeWidth={1.8} aria-hidden="true" />Reset body shape
     </button>
   </section>;

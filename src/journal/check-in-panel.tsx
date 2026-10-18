@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { ArrowUp, Copy, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -82,7 +83,7 @@ export function CheckInPanel({ storage, repository, editor, connectionError, onB
   useEffect(() => {
     void selectDate(active.current?.localDate ?? localToday());
     return () => { selection.current++; loadAbort.current?.abort(); };
-    // A repository change means an explicit store selection; keep its drafts separate.
+    // Reconnect or editor readiness changes restore the selected date without losing its draft.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [repository, editor, storage]);
 
@@ -104,7 +105,7 @@ export function CheckInPanel({ storage, repository, editor, connectionError, onB
     }).catch(() => { /* The next explicit save reports encoding errors and retains the draft. */ });
   }), [editor]);
 
-  useEffect(() => { onBusyChange?.(busy); }, [busy, onBusyChange]);
+  useEffect(() => { onBusyChange?.(busy); return () => onBusyChange?.(false); }, [busy, onBusyChange]);
 
   useEffect(() => {
     const warn = (event: BeforeUnloadEvent) => {
@@ -196,6 +197,8 @@ export function CheckInPanel({ storage, repository, editor, connectionError, onB
     </div>
     </div>
     {(draft.error || message || connectionError) && <p className={styles.error} role="alert">{draft.error ?? message ?? connectionError}</p>}
+    {draft.saveState === "saved" && <Link className="text-link" href={`/history?profile=visitor&date=${draft.localDate}`}>View history</Link>}
+    {readState === "error" && <Button variant="ghost" type="button" disabled={busy || loading} onClick={() => void selectDate(draft.localDate)}>Retry opening check-in</Button>}
     {unavailable && <p className={styles.explanation}>Saving body maps is not available yet. Your note stays here while this page is open.</p>}
     <p className={styles.explanation}>An empty map is recorded only when you save it. Days you skip stay unrecorded.</p>
     <p className={styles.privacy}>Notes are not sent to an AI service when you save a check-in.</p>

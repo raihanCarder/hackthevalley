@@ -1,94 +1,107 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useId, useState, useRef } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { ArrowUp, Copy, RotateCcw } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import type { BodyHandle } from "../body/body-handle";
 import { createEditorBridge } from "./editor";
 import { BodyWorkbench } from "../body/body-workbench";
+import { decodePaintSnapshot } from "../body/map-utils";
+import { MAYA_ENTRIES } from "../demo/maya";
 import { CheckInPanel } from "./check-in-panel";
-import { IndexedDbJournal, localVisitorId } from "./indexeddb";
 import { HttpJournal } from "./http";
-import { journalMapServices, syntheticJournalSource } from "./integrations";
-import type { JournalRepository, JournalStorage } from "./repository";
+import { useJournalProfile } from "./profile-context";
+import { parseLocalDate, type LocalDate } from "../domain/contracts";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { MAX_NOTE_LENGTH } from "./repository";
 import styles from "./journal.module.css";
 
-interface ServiceStatuses { postgresql: string; gemini: string }
-
 export function CheckInWorkspace({ children }: { children: React.ReactNode }) {
+  const { profile, ready, setBusy } = useJournalProfile();
   const details = usePathname() === "/check-in";
   const router = useRouter();
   const [mapPanel, setMapPanel] = useState<"tools" | "body">("tools");
+  const [openedYou, setOpenedYou] = useState(false);
+  useEffect(() => { if (ready && profile === "visitor") setOpenedYou(true); }, [ready, profile]);
   function changePanel(panel: "tools" | "body" | "details") {
     if (panel !== "details") setMapPanel(panel);
     if (details !== (panel === "details")) router.push(panel === "details" ? "/check-in" : "/", { scroll: false });
   }
   const body = useRef<BodyHandle | null>(null);
   const [editor] = useState(() => createEditorBridge(body));
-  const [storage, setStorage] = useState<JournalStorage | null>(null);
-  const [preferenceError, setPreferenceError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [repository, setRepository] = useState<JournalRepository | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [services, setServices] = useState<ServiceStatuses>({ postgresql: "Checking…", gemini: "Checking…" });
-
+  const [repository, setRepository] = useState<HttpJournal | null>(null);
+  // The workbench attaches its body handle before the first restoration starts.
+  useEffect(() => { if (openedYou) setRepository(new HttpJournal()); }, [openedYou]);
+  const [services, setServices] = useState({ postgresql: "Checking…", gemini: "Checking…" });
   useEffect(() => {
-    try {
-      const saved = window.localStorage.getItem("pain-journal-storage");
-      setStorage(saved === "postgresql" ? "postgresql" : "indexeddb");
-      if (!saved) window.localStorage.setItem("pain-journal-storage", "indexeddb");
-    } catch { setPreferenceError("Choose a save location. This browser cannot remember your selection."); }
-  }, []);
-
-  function chooseStorage(value: JournalStorage) {
-    setStorage(value);
-    try { window.localStorage.setItem("pain-journal-storage", value); setPreferenceError(null); }
-    catch { setPreferenceError("This save location is selected for this page. The browser cannot remember it after reloading."); }
-  }
-
-  useEffect(() => {
+    if (!openedYou) return;
     const abort = new AbortController();
     fetch("/api/status", { signal: abort.signal, cache: "no-store" }).then(response => response.json()).then(body => {
-      setServices({ postgresql: body.services?.postgresql ?? "Unavailable", gemini: body.services?.gemini ?? "Unavailable" });
+      if (!abort.signal.aborted) setServices({ postgresql: body.services?.postgresql ?? "Unavailable", gemini: body.services?.gemini ?? "Unavailable" });
     }).catch(() => { if (!abort.signal.aborted) setServices({ postgresql: "Unavailable", gemini: "Unknown" }); });
     return () => abort.abort();
-  }, []);
+  }, [openedYou]);
 
-  useEffect(() => {
-    let cancelled = false;
-    let local: IndexedDbJournal | undefined;
-    setError(null); setRepository(null);
-    if (!storage) return;
-    if (storage === "indexeddb") {
-      try {
-        local = new IndexedDbJournal({ profileId: localVisitorId(window.localStorage), maps: journalMapServices, synthetic: syntheticJournalSource });
-        setRepository(local);
-      } catch (failure) { setError(failure instanceof Error ? failure.message : "Browser storage is unavailable."); }
-    } else {
-      const server = new HttpJournal();
-      server.bootstrap().then(() => { if (!cancelled) setRepository(server); }).catch(failure => {
-        if (!cancelled) setError(failure instanceof Error ? failure.message : "PostgreSQL is unavailable. Your selected store has not changed.");
-      });
-    }
-    return () => { cancelled = true; if (local) void local.close(); };
-  }, [storage]);
-
-  // The scene and details stay mounted, preserving the live map and unsaved notes between panels.
   return <div className="journal-workspace" data-view="map">
     {children}
-    <div className={styles.mapView}><BodyWorkbench handleRef={body} onChange={editor.notify} panel={details ? "details" : mapPanel} onPanelChange={changePanel} checkInDetails={
-    <section className={styles.detailsView} aria-label="Check-in details">
-      <header className={styles.detailsHeading}><h1>Check-in details</h1><p>Add a note and save your body map.</p></header>
-      {preferenceError && <p className={styles.error} role="alert">{preferenceError}</p>}
-      {storage ? <CheckInPanel storage={storage} repository={repository?.storage === storage ? repository : null} editor={editor} connectionError={error} onBusyChange={setBusy} /> : <aside className={styles.panel}>Choose where to save your check-ins.</aside>}
-    <div className={styles.storage}>
-      <label htmlFor="journal-storage">Save location<select id="journal-storage" disabled={busy} value={storage ?? ""} onChange={event => chooseStorage(event.target.value as JournalStorage)}>
-        {!storage && <option value="" disabled>Choose a save location</option>}
-        <option value="indexeddb">This browser (IndexedDB)</option><option value="postgresql">Local PostgreSQL</option>
-      </select></label>
-      <dl className={styles.services} aria-label="Service status"><div><dt>PostgreSQL:</dt><dd>{services.postgresql}</dd></div><div><dt>Gemini:</dt><dd>{services.gemini}</dd></div></dl>
-    </div>
-      <section className={styles.keyboardGuide} aria-labelledby="keyboard-guide-heading"><h2 id="keyboard-guide-heading">Using the body map</h2><p>In Rotate mode, drag to turn the body and scroll to zoom. In Paint mode, drag on the body to mark what you feel.</p><p>With the body focused, use arrow keys to turn, + / − to zoom, and Home to reset the view. Ctrl or ⌘ + Z undoes a stroke.</p></section>
-    </section>
-    } /></div>
+    {!ready && <p role="status">Opening journal…</p>}
+    {/* Keep You's editor mounted while viewing Maya, preserving unsaved maps and notes. */}
+    {openedYou && <div className={styles.mapView} hidden={profile !== "visitor"}><BodyWorkbench handleRef={body} onChange={editor.notify} panel={details ? "details" : mapPanel} onPanelChange={changePanel} checkInDetails={
+      <section className={styles.detailsView} aria-label="Check-in details">
+        <header className={styles.detailsHeading}><h1>Check-in details</h1><p>Add a note and save your body map.</p></header>
+        <CheckInPanel storage="postgresql" repository={repository} editor={repository ? editor : undefined} onBusyChange={setBusy} />
+        <div className={styles.storage}>
+          <dl className={styles.services} aria-label="Service status"><div><dt>PostgreSQL:</dt><dd>{services.postgresql}</dd></div><div><dt>Gemini:</dt><dd>{services.gemini}</dd></div></dl>
+        </div>
+        <section className={styles.keyboardGuide} aria-labelledby="keyboard-guide-heading"><h2 id="keyboard-guide-heading">Using the body map</h2><p>In Rotate mode, drag to turn the body and scroll to zoom. In Paint mode, drag on the body to mark what you feel.</p><p>With the body focused, use arrow keys to turn, + / − to zoom, and Home to reset the view. Ctrl or ⌘ + Z undoes a stroke.</p></section>
+      </section>
+    } /></div>}
+    {ready && profile === "maya" && <div className={styles.mapView}><MayaWorkbench panel={details ? "details" : mapPanel} onPanelChange={changePanel} /></div>}
   </div>;
+}
+
+function MayaWorkbench({ panel, onPanelChange }: { panel: "tools" | "body" | "details"; onPanelChange(panel: "tools" | "body" | "details"): void }) {
+  const id = useId();
+  const [date, setDate] = useState<LocalDate>(MAYA_ENTRIES[MAYA_ENTRIES.length - 1].localDate);
+  const entry = MAYA_ENTRIES.find(value => value.localDate === date) ?? null;
+  const body = useRef<BodyHandle | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    if (!entry) { body.current?.load(null); setError(null); return; }
+    setError(null);
+    decodePaintSnapshot(entry.maps).then(layers => { if (!cancelled) body.current?.load(layers); })
+      .catch(reason => { if (!cancelled) setError(reason instanceof Error ? reason.message : "The sample map could not be opened."); });
+    return () => { cancelled = true; };
+  }, [entry]);
+  return <BodyWorkbench readOnly panel={panel} onPanelChange={onPanelChange} initialLayers={null} handleRef={body}
+    checkInDetails={<section className={styles.detailsView} aria-label="Check-in details">
+      <header className={styles.detailsHeading}><h1>Check-in details</h1><p>Maya’s synthetic sample, shown as recorded.</p></header>
+      <aside className={styles.panel} aria-label="Maya sample check-in">
+        <div className={styles.panelHeader}>
+          <div className={styles.dateField}><label htmlFor={`${id}-date`}>Check-in date</label>
+            <Input id={`${id}-date`} type="date" min={MAYA_ENTRIES[0].localDate} max={MAYA_ENTRIES[MAYA_ENTRIES.length - 1].localDate} value={date}
+              onChange={event => { try { setDate(parseLocalDate(event.target.value)); } catch { /* Keep the last valid sample date. */ } }} />
+          </div>
+          <div className={styles.mapActions}>
+            <Button variant="ghost" type="button" disabled><Copy size={14} aria-hidden="true" />Copy previous map</Button>
+            <Button variant="ghost" type="button" disabled><RotateCcw size={14} aria-hidden="true" />Start with an empty map</Button>
+          </div>
+        </div>
+        {error && <p className={styles.error} role="alert">{error}</p>}
+        <div className={styles.composer}>
+          <div className={styles.noteField}><label htmlFor={`${id}-note`}>A note for this day <span>(optional)</span></label>
+            <Textarea id={`${id}-note`} rows={2} maxLength={MAX_NOTE_LENGTH} value={entry?.note ?? ""} readOnly aria-describedby={`${id}-note-help ${id}-note-length`} />
+          </div>
+          <div className={styles.composerFooter}>
+            <div className={styles.noteMeta}><span id={`${id}-note-help`}>Maya’s fixed sample record.</span><span id={`${id}-note-length`}>{(entry?.note ?? "").length.toLocaleString()} / 4,000</span></div>
+            <Button className={styles.save} type="button" disabled>Save check-in<ArrowUp size={16} aria-hidden="true" /></Button>
+          </div>
+        </div>
+        <p className={styles.explanation}>Choose another date to view a different recorded body map.</p>
+      </aside>
+      <div className={styles.storage}><a className="text-link" href="/history?profile=maya">Explore Maya’s history</a></div>
+    </section>} />;
 }

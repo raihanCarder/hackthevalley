@@ -1,10 +1,9 @@
 import "server-only";
 import { Pool } from "pg";
-import { cookies } from "next/headers";
 import { PostgresJournal } from "../postgres";
 import { journalMapServices, syntheticJournalSource } from "../integrations";
 import { JournalError, type JournalProfile } from "../repository";
-import { hashToken, SESSION_COOKIE, validToken } from "./security";
+import { LOCAL_PROFILE_ID } from "../repository";
 
 const shared = globalThis as typeof globalThis & { journalPool?: Pool };
 export function journalPool(): Pool {
@@ -19,11 +18,7 @@ export function journalPool(): Pool {
 }
 
 export async function visitorProfile(): Promise<string> {
-  const token = (await cookies()).get(SESSION_COOKIE)?.value;
-  if (!validToken(token)) throw new JournalError("forbidden", "Start a visitor session before opening the server journal.");
-  const { rows } = await journalPool().query("SELECT profile_id FROM visitor_sessions WHERE token_hash = $1 AND expires_at > now()", [hashToken(token)]);
-  if (!rows[0]) throw new JournalError("forbidden", "Your visitor session has expired. Start a new session to continue.");
-  return rows[0].profile_id;
+  return LOCAL_PROFILE_ID;
 }
 
 export async function serverRepository(profile: JournalProfile) {

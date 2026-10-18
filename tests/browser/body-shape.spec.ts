@@ -1,4 +1,4 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Page } from "./local-fixture";
 import { landmark, project } from "./body-landmarks";
 
 async function open(page: Page) {

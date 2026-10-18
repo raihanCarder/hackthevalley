@@ -4,48 +4,47 @@
 
 Paint four independent sensations directly on a rotatable 3D body, save a daily check-in with a note, and inspect exact saved maps in History. Maya supplies 42 clearly labeled synthetic check-ins for playback, regional intensity/coverage trends, and two-date comparison. The appointment report uses the same records and analysis, with front/back range composites and one-page A4/Letter printing.
 
-Requires Node.js 20.19+ and npm. No external service is required for browser-local check-ins, Maya, trends, comparisons, or the factual report.
+Requires Node.js 20.19+, npm, and local PostgreSQL for your journal. Maya and her factual report work without PostgreSQL or Gemini.
 
 ```sh
 npm ci
+docker compose -f db/compose.yml up -d --wait
+# Add DATABASE_URL to .env.local (see .env.example); preserve existing Gemini settings.
+npm run db:migrate
 npm run dev
 ```
 
-Open http://localhost:3000. Paint, save, reload the same date, and open History → Visitor. Copy a previous map to edit another date; an unsaved draft never becomes a recorded check-in. Missing dates remain distinct from explicitly saved empty maps.
+Open http://localhost:3000. Click the profile icon to choose **You** or **Maya**. Paint under You, save, reload the same date, and open History. Copy a previous map to edit another date; an unsaved draft never becomes a recorded check-in. Missing dates remain distinct from explicitly saved empty maps.
 
 ```sh
 npm test
 npm run typecheck
 npm run build
 npm start
-# With a running server:
+# Browser acceptance starts an isolated app and temporary PostgreSQL schema:
 npx playwright install chromium
-npm run test:browser
-# Another port: TEST_BASE_URL=http://127.0.0.1:3014 npm run test:browser
+npm run test:local-browser
 ```
 
 The [demo guide](docs/demo.md) covers painting → Maya playback → trends/comparison → report. See [integration verification](docs/integration-verification.md) for observed checks and limits.
 
 ### Storage
 
-The default is **This browser (IndexedDB)**. **Local PostgreSQL** is an explicit alternative with temporary visitor sessions and no sign-in. The selection is shared across check-in, history, and report. Failed saves retain the draft and never change stores.
+There are exactly two visible profiles, selected from the profile icon on desktop or mobile:
 
-For local PostgreSQL:
+- **You** uses one persistent journal in PostgreSQL on this device. Closing the browser, clearing cookies, or restarting the app does not change its ownership. Browsers connected to this local installation open the same journal.
+- **Maya** uses the immutable, synthetic six-week sample. It is read-only throughout the application.
 
-```sh
-docker compose -f db/compose.yml up -d --wait
-cp .env.example .env.local
-npm run db:migrate
-npm run dev
-```
+PostgreSQL is the application's save location. Failed saves preserve your draft and offer retry. Existing IndexedDB records and historical visitor records are preserved but are not automatically imported into You's journal.
 
-For an existing ordinary PostgreSQL server, create a database, set `DATABASE_URL` in `.env.local`, and run the same migration. No TimescaleDB extension or cloud service is needed. Choose **Local PostgreSQL**, paint, save, reload the same date, then inspect Visitor history and its report. Detailed setup, the bounded repository interface, versions, and isolation are in [journal documentation](docs/journal.md).
+For an existing PostgreSQL server, set `DATABASE_URL` in `.env.local` and run `npm run db:migrate`. No extension or cloud service is needed. When Docker is unavailable and Homebrew PostgreSQL 17 is installed, start it with `pg_ctl -D /opt/homebrew/var/postgresql@17 -l /tmp/pain-journal-postgres.log -o '-h 127.0.0.1 -p 5432' start`; the database and login named in `DATABASE_URL` must exist. See [journal documentation](docs/journal.md).
 
 ```sh
 TEST_DATABASE_URL=<local-connection-string> npm run test:journal:postgres
-# With the app connected to that database:
-TEST_JOURNAL_STORAGE=postgresql npm run test:browser -- tests/browser/journal-history.spec.ts
+npm run test:local-browser
 ```
+
+Both database acceptance commands create and remove generated test schemas. Browser tests run with Gemini disabled; they do not write test check-ins to your journal or make live-provider calls.
 
 ### Gemini report summaries
 
@@ -56,7 +55,7 @@ GEMINI_API_KEY=your-key
 GEMINI_MODEL=your-enabled-model-id
 ```
 
-Open the report and click **Organize with Gemini** to send that report's saved facts and notes. Save never calls Gemini. Only statements validated against the evidence are displayed; missing keys, timeouts, provider failures, and invalid replies retain the labeled factual summary. Configuration is separate from PostgreSQL. See [report documentation](docs/report.md) for validation, local fake-provider checks, print behavior, and the live-verification limit.
+Open the report and click **Generate Gemini summary** to send that report's saved facts and notes. Save never calls Gemini. Only statements validated against the evidence are displayed; missing keys, timeouts, provider failures, and invalid replies retain the labeled factual summary. Configuration is separate from PostgreSQL. See [report documentation](docs/report.md) for validation, local fake-provider checks, print behavior, and the live-verification limit.
 
 ### Assets and feature documentation
 

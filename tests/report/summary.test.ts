@@ -4,7 +4,7 @@ import { MAYA_ENTRIES, MAYA_PROFILE } from "../../src/demo/maya";
 import { buildReportModel } from "../../src/report/facts";
 import { buildGeminiRequest, summarize, type GeminiConfig } from "../../src/report/gemini";
 import { deterministicPlan, PlanRejected, renderStatement, validatePlan, type PlanStatement } from "../../src/report/plan";
-import { prepareSummary, ReportRequestError } from "../../src/report/summary-service";
+import { prepareSummary, reportRevision, ReportRequestError } from "../../src/report/summary-service";
 import { createEmptyLayers } from "../../src/body/map-utils";
 import { paintRegion, savedEntry } from "./fixtures";
 
@@ -86,6 +86,7 @@ test("every failure falls back to the labelled factual summary with an accurate 
   const cases: [string, Promise<Awaited<ReturnType<typeof summarize>>>, string][] = [
     ["no configuration", summarize(facts, null, (() => { throw new Error("must not call"); }) as unknown as typeof fetch), "not-configured"],
     ["HTTP 500", summarize(facts, config, provider({ error: "boom" }, { status: 500 }).fetcher), "provider-error"],
+    ["billing required", summarize(facts, config, provider({ error: "billing" }, { status: 402 }).fetcher), "provider-error"],
     ["network error", summarize(facts, config, (async () => { throw new TypeError("fetch failed"); }) as typeof fetch), "provider-error"],
     ["timeout", summarize(facts, config, ((_url: string, init: RequestInit) => new Promise((_, reject) => init.signal!.addEventListener("abort", () => reject(init.signal!.reason)))) as typeof fetch), "timeout"],
     ["not JSON", summarize(facts, config, provider("<html>").fetcher), "rejected"],
@@ -119,20 +120,23 @@ test("summary service: Maya is read on the server; requests are validated and em
   await fail({ profile: "maya", from: "2026-09-06", to: "2026-10-17", profileId: "maya-synthetic" }, "invalid");
 });
 
-test("summary service re-measures visitor entries from their maps and rejects tampered or foreign records", async () => {
-  const deps = { gemini: null, synthetic: { profileId: MAYA_PROFILE.id, entries: MAYA_ENTRIES } };
-  const day1 = await savedEntry("2026-10-01", paintRegion("left-calf", "burning", 180), { profileId: "visitor-x", note: "Calf burned after the drive." });
-  const day2 = await savedEntry("2026-10-03", paintRegion("left-calf", "burning", 200, createEmptyLayers(), .5), { profileId: "visitor-x" });
-  const visitor = await prepareSummary({ profile: "visitor", from: "2026-10-01", to: "2026-10-07", entries: [day1, day2] }, deps);
-  assert.equal(visitor.recordedDays, 2);
-  assert.ok(visitor.sentences.includes("Check-ins were saved on 2 of 7 calendar days; 5 days have no check-in."));
-  assert.ok(visitor.sentences.includes("Burning in the left calf was marked on 2 of 2 recorded days."));
-  const fail = (list: unknown[], from = "2026-10-01", to = "2026-10-07") => assert.rejects(prepareSummary({ profile: "visitor", from, to, entries: list }, deps), (error: unknown) => error instanceof ReportRequestError && error.code === "invalid");
-  await fail([{ ...day1, observations: [{ regionId: "head", painType: "sharp", meanIntensity: 9, peakIntensity: 10, mapCoverage: 1 }] }]);
-  await fail([day1, { ...day2, profileId: "visitor-y" }]);
-  await fail([day1], "2026-10-02", "2026-10-07");
-  await fail([day1, { ...day1, id: "copy" }]);
-  await fail([{ ...day1, maps: { ...day1.maps, bodyMapVersion: "mannequin-v0" } }]);
-  await fail([{ ...MAYA_ENTRIES[30] }], "2026-10-01", "2026-10-07");
-  await assert.rejects(prepareSummary({ profile: "visitor", from: "2026-10-01", to: "2026-10-07", entries: [] }, deps), (error: unknown) => error instanceof ReportRequestError && error.code === "empty");
+test("You's summaries load saved records on the server and reject submitted records and stale revisions", async () => {
+  const day1 = await savedEntry("2026-10-01", paintRegion("left-calf", "burning", 180), { profileId: "local-you", note: "Calf burned after the drive." });
+  const day2 = await savedEntry("2026-10-03", paintRegion("left-calf", "burning", 200, createEmptyLayers(), .5), { profileId: "local-you" });
+  let reads = 0;
+  const deps = { gemini: null, synthetic: { profileId: MAYA_PROFILE.id, entries: MAYA_ENTRIES }, loadVisitorEntries: async (range: { from: string; to: string }) => {
+    reads++;
+    assert.deepEqual(range, { from: "2026-10-01", to: "2026-10-07" });
+    return [day1, day2];
+  } };
+  const request = { profile: "visitor", from: "2026-10-01", to: "2026-10-07", revision: reportRevision([day1, day2]) };
+  const result = await prepareSummary(request, deps);
+  assert.equal(result.recordedDays, 2);
+  assert.equal(reads, 1);
+  assert.ok(result.sentences.includes("Burning in the left calf was marked on 2 of 2 recorded days."));
+  for (const fields of [{ entries: [day1] }, { profileId: "another-user" }]) {
+    await assert.rejects(prepareSummary({ ...request, ...fields }, deps), (error: unknown) => error instanceof ReportRequestError && error.code === "invalid");
+  }
+  await assert.rejects(prepareSummary({ ...request, revision: "stale" }, deps), (error: unknown) => error instanceof ReportRequestError && error.code === "changed");
+  await assert.rejects(prepareSummary({ ...request, revision: reportRevision([]) }, { ...deps, loadVisitorEntries: async () => [] }), (error: unknown) => error instanceof ReportRequestError && error.code === "empty");
 });

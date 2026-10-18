@@ -1,5 +1,9 @@
 # Design
 
+## Approved local journal follow-up
+
+The latest approved plan supersedes the earlier store-selection and temporary-session UI described in the original implementation record below. The application exposes exactly You and Maya through the profile icon. You resolves to persistent `local-you` ownership in local PostgreSQL; Maya is the immutable fixture. Migration 003 preserves historical records while separating ownership from session expiry. The app no longer bootstraps visitor sessions or chooses IndexedDB. Check-in drafts survive profile switching, and reports read saved evidence on the server with revision checks.
+
 ## Context
 
 See `proposal.md` for motivation and the four capability deltas for observable behavior. The Next.js foundation, original body model, painting, journal persistence, history analysis, and report are now integrated. The task audit records verified completion and the remaining demo-device/live-Gemini acceptance gates. The four-owner responsibility and interface plan below remains the architecture for that implementation.

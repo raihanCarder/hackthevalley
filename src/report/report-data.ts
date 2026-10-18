@@ -1,55 +1,20 @@
-import type { DailyEntry, LocalDate } from "../domain/contracts";
+import { parseDailyEntry, type DailyEntry, type LocalDate } from "../domain/contracts";
 import { MAYA_ENTRIES, MAYA_PROFILE } from "../demo/maya";
-import { HttpJournal } from "../journal/http";
-import { IndexedDbJournal, localVisitorId } from "../journal/indexeddb";
-import { journalMapServices, syntheticJournalSource } from "../journal/integrations";
-import { JournalError, type JournalRepository, type JournalStorage } from "../journal/repository";
-
+import { JournalError, checkRead, type JournalStorage } from "../journal/repository";
 import type { ReportProfileKey } from "./summary-service";
 export type { ReportProfileKey };
 export interface LoadedEntries { profileId: string; entries: DailyEntry[]; storage: JournalStorage | "synthetic" }
-export class StorageNotChosen extends Error {
-  constructor() { super("This browser is blocking storage, so saved check-ins can’t be read here. Choose a save location on the Check-in page."); this.name = "StorageNotChosen"; }
-}
 
-/**
- * The save location the check-in page uses: PostgreSQL only when chosen there, otherwise this browser (IndexedDB),
- * matching the check-in page's default. When browser preferences are blocked the check-in page asks, so this does too.
- */
-export function chosenStorage(): JournalStorage | null {
-  try { return window.localStorage.getItem("pain-journal-storage") === "postgresql" ? "postgresql" : "indexeddb"; }
-  catch { return null; }
-}
-
-/**
- * Loads saved entries only, through the same sources as the timeline: Maya's immutable fixture, or the visitor's
- * chosen journal repository. Unsaved check-in drafts are never read.
- */
+/** Saved records only; You's maps and notes are read together in one PostgreSQL query. */
 export async function loadSavedEntries(profile: ReportProfileKey, range: { from: LocalDate; to: LocalDate }, signal: AbortSignal): Promise<LoadedEntries> {
+  checkRead({ signal });
   if (profile === "maya") {
     const entries = MAYA_ENTRIES.filter(entry => entry.localDate >= range.from && entry.localDate <= range.to);
     return { profileId: MAYA_PROFILE.id, entries: structuredClone(entries), storage: "synthetic" };
   }
-  const storage = chosenStorage();
-  if (!storage) throw new StorageNotChosen();
-  let repository: JournalRepository;
-  if (storage === "indexeddb") {
-    repository = new IndexedDbJournal({ profileId: localVisitorId(window.localStorage), maps: journalMapServices, synthetic: syntheticJournalSource });
-  } else {
-    const server = new HttpJournal();
-    await server.bootstrap();
-    repository = server;
-  }
-  try {
-    const summaries = await repository.list("visitor", range, { signal });
-    const entries: DailyEntry[] = [];
-    for (const summary of summaries) {
-      const entry = await repository.read("visitor", summary.localDate, { signal });
-      if (entry) entries.push(entry);
-    }
-    if (signal.aborted) throw new JournalError("cancelled", "The report request was cancelled.");
-    return { profileId: entries[0]?.profileId ?? summaries[0]?.profileId ?? "visitor", entries, storage };
-  } finally {
-    if (repository instanceof IndexedDbJournal) await repository.close();
-  }
+  const response = await fetch(`/api/report/entries?${new URLSearchParams({ profile, ...range })}`, { cache: "no-store", signal });
+  const body = await response.json();
+  checkRead({ signal });
+  if (!response.ok) throw new JournalError("unavailable", body.error?.message ?? "Your saved check-ins could not be loaded.");
+  return { profileId: body.profileId, entries: body.entries.map(parseDailyEntry), storage: "postgresql" };
 }

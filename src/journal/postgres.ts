@@ -61,6 +61,17 @@ export class PostgresJournal implements JournalRepository {
     } catch (error) { throw this.readError(error); }
   }
 
+  /** One database snapshot for complete report evidence, including maps and notes. */
+  async readRange(range: DateRange, options?: ReadOptions): Promise<DailyEntry[]> {
+    validateRange(range); checkRead(options);
+    try {
+      const { rows } = await this.pool.query(`SELECT ${metadataColumns}, e.maps, e.note FROM daily_entries e
+        WHERE e.profile_id = $1 AND e.local_date BETWEEN $2::date AND $3::date ORDER BY e.local_date`, [this.profileId, range.from, range.to]);
+      checkRead(options);
+      return rows.map(row => parseStoredEntry(normalize(row)));
+    } catch (error) { throw this.readError(error); }
+  }
+
   private readError(error: unknown): JournalError {
     return error instanceof JournalError ? error : new JournalError("unavailable", "PostgreSQL could not read the journal. The selected store has not changed.");
   }
