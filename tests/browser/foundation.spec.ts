@@ -5,9 +5,10 @@ test("deep links, Node route, and browser-only renderer load without hydration e
   const errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
   page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
-  for (const path of ["/history", "/report", "/"]) {
+  for (const path of ["/history", "/report", "/check-in", "/"]) {
     await page.goto(path);
-    await expect(page.locator("h1")).toBeVisible();
+    if (path === "/") await expect(page.getByRole("region", { name: "Body map", exact: true })).toBeVisible();
+    else await expect(page.locator("h1")).toBeVisible();
   }
   await expect(page.locator(".scene-mount")).toHaveAttribute("data-status", "ready");
   const response = await request.get("/api/status");
@@ -54,6 +55,10 @@ test("phone, tablet, and desktop retain visible controls without horizontal over
     await expect(page.locator(".scene-mount")).toHaveAttribute("data-status", "ready");
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await expect(page.getByRole("button", { name: "Paint", exact: true })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollHeight <= window.innerHeight)).toBe(true);
+    const editor = (await page.locator(".body-workbench").boundingBox())!;
+    expect(Math.round(editor.y + editor.height)).toBe(1000);
+    await expect(page.locator(".stage-topbar, .check-in-heading")).toHaveCount(0);
     await page.screenshot({ path: `test-results/check-in-${width}.png`, fullPage: true });
   }
 });

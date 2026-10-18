@@ -283,7 +283,7 @@ export function HistoryView() {
               <span>Synthetic · Read-only</span>
             </span>
           ) : (
-            <span className={styles.syntheticBadge} style={{ background: "#f0f2f0", color: "#52675b" }}>
+            <span className={styles.syntheticBadge} >
               <span>Local Session</span>
             </span>
           )}
@@ -466,7 +466,7 @@ export function HistoryView() {
                 currentEntry.observations.length === 0 ? (
                   <span style={{ fontSize: "12px", color: "var(--muted)" }}>Explicitly empty check-in</span>
                 ) : (
-                  <span style={{ fontSize: "12px", color: "var(--accent)", fontWeight: 600 }}>
+                  <span style={{ fontSize: "12px", color: "var(--primary)", fontWeight: 600 }}>
                     {currentEntry.observations.length} area{currentEntry.observations.length > 1 ? "s" : ""} marked
                   </span>
                 )

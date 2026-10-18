@@ -5,10 +5,9 @@ import "./globals.css";
 export const metadata: Metadata = { title: "Pain journal", description: "A body map for your daily pain journal." };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="en"><body>
+  return <html lang="en" className="dark"><body>
     <a className="skip-link" href="#main">Skip to content</a>
-    <header className="app-header"><a className="wordmark" href="/">pain journal<span>A little more understanding.</span></a><AppNav /></header>
+    <AppNav />
     <main id="main">{children}</main>
-    <footer className="app-footer"><span>A place to describe what you feel.</span><span>Prototype · personal pain journal</span></footer>
   </body></html>;
 }

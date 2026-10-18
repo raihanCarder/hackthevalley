@@ -92,11 +92,11 @@ export function TrendChart({ trend, activeDate, onSelectDate }: Props) {
                 y1={y}
                 x2={width - padRight}
                 y2={y}
-                stroke="#dbe3dd"
+                stroke="var(--border)"
                 strokeWidth="1"
                 strokeDasharray={val === 0 ? undefined : "3 3"}
               />
-              <text x={padLeft - 8} y={y + 4} textAnchor="end" fontSize="10" fill="#677c70">
+              <text x={padLeft - 8} y={y + 4} textAnchor="end" fontSize="10" fill="var(--muted)">
                 {val}
               </text>
             </g>
@@ -106,7 +106,7 @@ export function TrendChart({ trend, activeDate, onSelectDate }: Props) {
         {/* Date labels on X axis */}
         {points.length > 0 && (
           <>
-            <text x={padLeft} y={height - 10} textAnchor="start" fontSize="10" fill="#677c70">
+            <text x={padLeft} y={height - 10} textAnchor="start" fontSize="10" fill="var(--muted)">
               {points[0].localDate.slice(5)}
             </text>
             <text
@@ -114,7 +114,7 @@ export function TrendChart({ trend, activeDate, onSelectDate }: Props) {
               y={height - 10}
               textAnchor="end"
               fontSize="10"
-              fill="#677c70"
+              fill="var(--muted)"
             >
               {points[points.length - 1].localDate.slice(5)}
             </text>
@@ -140,7 +140,7 @@ export function TrendChart({ trend, activeDate, onSelectDate }: Props) {
             key={`int-${idx}`}
             d={d}
             fill="none"
-            stroke="#203b32"
+            stroke="var(--primary)"
             strokeWidth="2.5"
             strokeLinecap="round"
           />
@@ -194,7 +194,7 @@ export function TrendChart({ trend, activeDate, onSelectDate }: Props) {
                   y1={padTop}
                   x2={x}
                   y2={padTop + chartH}
-                  stroke="#365e49"
+                  stroke="var(--primary)"
                   strokeWidth="1.5"
                   strokeDasharray="2 2"
                   opacity="0.6"
@@ -206,8 +206,8 @@ export function TrendChart({ trend, activeDate, onSelectDate }: Props) {
                 cx={x}
                 cy={yInt}
                 r={isActive ? 6 : isHovered ? 5 : 3.5}
-                fill={isActive ? "#ce542e" : "#203b32"}
-                stroke="#ffffff"
+                fill={isActive ? "#ce542e" : "var(--primary)"}
+                stroke="var(--surface)"
                 strokeWidth={isActive ? 2 : 1}
               >
                 <title>{`${pt.localDate}: Peak ${pt.peakIntensity}/10, Coverage ${((pt.mapCoverage ?? 0) * 100).toFixed(0)}%`}</title>

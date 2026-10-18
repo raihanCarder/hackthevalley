@@ -1,29 +1,47 @@
-.panel { min-width: 0; padding-top: 8px; }
-.panel label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 8px; }
-.panel label span { color: var(--muted); font-weight: normal; }
-.panel input, .panel textarea, .storage select { width: 100%; min-height: 44px; color: var(--foreground); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; font: inherit; }
-.panel textarea { resize: vertical; min-height: 130px; line-height: 1.5; }
-.dateField small { display: block; font-size: 12px; color: var(--muted); margin-top: 6px; overflow-wrap: anywhere; }
-.draftStatus { font-size: 14px; border-left: 3px solid var(--accent); padding-left: 10px; margin: 18px 0; }
-.mapActions { display: grid; gap: 8px; padding-bottom: 24px; margin-bottom: 24px; border-bottom: 1px solid var(--border); }
-.mapActions button { border-color: var(--border); background: var(--surface); text-align: left; font-size: 14px; }
-.panel button:disabled { cursor: not-allowed; opacity: .6; }
-.noteMeta { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; color: var(--muted); font-size: 12px; margin-top: 6px; }
-.explanation, .privacy, .source { color: var(--muted); font-size: 12px; line-height: 1.6; }
-.explanation { margin: 20px 0 14px; }
-.source { padding: 10px 12px; background: var(--stage); border-radius: 8px; }
-.panel .save { background: var(--accent); color: white; width: 100%; min-height: 46px; }
-.panel .save:hover:enabled { background: var(--foreground); }
-.privacy { margin-top: 14px; }
-.error { color: var(--error); font-size: 14px; overflow-wrap: anywhere; }
-.storage { display: flex; align-items: center; justify-content: space-between; gap: 16px 32px; flex-wrap: wrap; margin: 0 0 24px; padding: 14px 0; border-block: 1px solid var(--border); }
-.storage label { display: flex; align-items: center; gap: 12px; font-size: 14px; }
-.storage select { width: auto; font-size: 14px; max-width: 100%; }
-.services { display: flex; gap: 8px 20px; flex-wrap: wrap; margin: 0; font-size: 12px; color: var(--muted); }
+.mapView { height: 100%; min-height: 0; }
+.mapView[hidden], .detailsView[hidden] { display: none; }
+.keyboardGuide { width: min(900px, 100%); margin: 32px auto 0; padding-top: 20px; border-top: 1px solid var(--border); color: var(--muted); font-size: 12px; line-height: 1.7; }
+.keyboardGuide h2 { font-size: 13px; color: var(--foreground); }
+.keyboardGuide p + p { margin-top: 10px; }
+.panel { min-width: 0; width: min(900px, 100%); margin-inline: auto; padding-top: 6px; }
+.panelHeader { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+.dateField { display: flex; align-items: center; gap: 9px; }
+.dateField label { color: var(--muted); font-size: 11px; }
+.dateField input { width: auto; min-height: 34px; height: 34px; padding: 4px 8px; font-size: 12px; box-shadow: none; background: var(--surface); }
+.draftStatus { font-size: 10px; font-weight: 400; color: var(--muted); padding: 4px 8px; border-color: var(--border); }
+.mapActions { display: flex; gap: 4px; margin-left: auto; flex-wrap: wrap; }
+.mapActions button { min-height: 32px; height: auto; font-size: 11px; padding: 5px 8px; color: var(--muted); gap: 6px; }
+.composer { border: 1px solid #484848; background: #2b2b2b; border-radius: 18px; padding: 16px 18px 12px; }
+.composer:focus-within { border-color: #849c93; }
+.noteField label { display: block; font-size: 12px; font-weight: 500; margin-bottom: 4px; }
+.noteField label span { color: var(--muted); font-weight: normal; }
+.noteField textarea { width: 100%; resize: vertical; min-height: 52px; max-height: 220px; padding: 5px 0; line-height: 1.6; color: var(--foreground); background: transparent; border: 0; border-radius: 0; box-shadow: none; font-size: 13px; }
+.noteField textarea:focus-visible { outline: none; box-shadow: none; }
+.noteField textarea::placeholder { color: #929292; }
+.composerFooter { display: flex; justify-content: space-between; align-items: end; gap: 12px; margin-top: 4px; }
+.noteMeta { display: flex; gap: 12px; flex-wrap: wrap; color: var(--muted); font-size: 10px; }
+.panel .save { min-height: 36px; height: auto; font-size: 12px; padding: 8px 12px; border-radius: 9px; flex: none; }
+.explanation, .privacy, .source { color: var(--muted); font-size: 10px; line-height: 1.6; }
+.explanation { margin: 10px 0 0; text-align: center; }
+.privacy { margin: 3px 0 0; text-align: center; }
+.source { padding: 10px 12px; background: var(--surface); border-radius: 8px; margin-bottom: 10px; }
+.error { color: var(--error); font-size: 12px; overflow-wrap: anywhere; margin-block: 10px; }
+.storage { width: min(900px, 100%); margin: 18px auto 0; display: flex; align-items: center; justify-content: space-between; gap: 12px 24px; flex-wrap: wrap; padding-top: 16px; border-top: 1px solid var(--border); color: var(--muted); }
+.storage label { display: flex; align-items: center; gap: 10px; font-size: 10px; }
+.storage select { min-height: 32px; color: var(--muted); background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; font-size: 11px; max-width: 100%; }
+.services { display: flex; gap: 6px 16px; flex-wrap: wrap; margin: 0; font-size: 10px; color: var(--muted); }
 .services div { display: flex; gap: 5px; }
 .services dd { margin: 0; }
-.sensations { margin-top: 26px; padding-top: 22px; border-top: 1px solid var(--border); }
-.sensations ul { display: flex; flex-wrap: wrap; gap: 12px 24px; list-style: none; margin: 0; padding: 0; }
-.sensations li { display: flex; gap: 10px; align-items: center; font-size: 12px; color: var(--muted); }
-@media (max-width: 900px) { .panel { max-width: 640px; width: 100%; } }
-@media (max-width: 580px) { .storage label { flex-direction: column; align-items: start; width: 100%; gap: 6px; } .storage select { width: 100%; } .services { gap: 6px 16px; } }
+@media (max-width: 1050px) { .mapActions { margin-left: 0; width: 100%; } }
+@media (max-width: 580px) {
+  .panelHeader { gap: 10px; }
+  .dateField { flex: 1; }
+  .dateField label { font-size: 10px; }
+  .dateField input { min-width: 0; width: 135px; }
+  .mapActions { gap: 0; justify-content: space-between; }
+  .mapActions button { padding-inline: 0; font-size: 10px; }
+  .composer { padding: 14px; }
+  .composerFooter { align-items: center; }
+  .noteMeta { gap: 3px; flex-direction: column; }
+  .services { font-size: 9px; }
+}

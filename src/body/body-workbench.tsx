@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState, type RefObject } from "react";
+import { Button } from "@/components/ui/button";
 import { Rotate3D, Paintbrush, X } from "lucide-react";
 import type { CameraView, InteractionMode, RegionalObservation } from "@/domain/contracts";
 import { DeferredBodyHandle, type BodyChange, type BodyHandle } from "./body-handle";
@@ -74,12 +75,7 @@ export function BodyWorkbench({ initialLayers, handleRef, onChange }: BodyEditor
   const help = status === "error" ? "Painting is unavailable because the body map couldn’t load."
     : mode === "rotate" ? "Drag to turn · Scroll to zoom"
     : brush.tool === "eraser" ? "Drag over a mark to erase it. Switch to Rotate to turn the body." : "Drag on the body to paint. Switch to Rotate to turn the body.";
-
   return <section className={`body-workbench ${styles.workbench}`} aria-label="Body map" onKeyDown={onKeyDown}>
-    <div className="stage-topbar"><span>Mark where you feel it</span><div className="mode-switch" role="group" aria-label="Interaction mode">
-      <button type="button" aria-pressed={mode === "rotate"} onClick={() => setMode("rotate")}><Rotate3D size={18} aria-hidden="true" />Rotate</button>
-      <button type="button" aria-pressed={mode === "paint"} disabled={status === "error"} onClick={() => setMode("paint")}><Paintbrush size={18} aria-hidden="true" />Paint</button>
-    </div></div>
     {loadError && <div className={styles.loadError} role="alert">
       <p><strong>This painting can’t be shown.</strong> {loadError} The saved entry has not been changed.</p>
       <button type="button" onClick={() => setLoadError(null)} aria-label="Dismiss message"><X size={18} aria-hidden="true" /></button>
@@ -88,20 +84,34 @@ export function BodyWorkbench({ initialLayers, handleRef, onChange }: BodyEditor
       <div className={styles.stageColumn}>
         <div className={`body-stage ${styles.stage}`} data-mode={mode}>
           <BodyScene handle={handle} editable mode={mode} view={view} viewRequest={viewRequest} brush={brush} onStatus={setStatus} shape={bodyShape}
-            label="Rotatable 3D body for painting pain, patient-left is positive X" describedBy="scene-help" />
+            label="Rotatable 3D body for painting pain, patient-left is positive X" describedBy="scene-help scene-keyboard-help" />
         </div>
-        <div className="stage-bottom"><div className="view-switch" role="group" aria-label="Camera views">{VIEWS.map(next =>
-          <button type="button" key={next} onClick={() => changeView(next)}>{viewLabel(next)}</button>
-        )}</div><FocusButtons onFocus={target => handle.focus(target)} />
-          <button type="button" className={styles.shapeToggle} aria-expanded={shapeOpen} aria-controls="body-shape-panel" onClick={() => setShapeOpen(open => !open)}>
-            {shapeOpen ? "Hide body shape" : "Adjust body shape"}
-          </button>
-          <div id="body-shape-panel" hidden={!shapeOpen}><BodyShapePanel shape={bodyShape} onChange={setBodyShape} /></div>
-          <p id="scene-help" aria-live="polite">{help}</p></div>
       </div>
-      <BrushToolbar brush={brush} onBrush={updateBrush} canUndo={canUndo} onUndo={() => handle.undo()} observations={observations} disabled={unavailable} />
+      <aside className={styles.controlRail} aria-label="Body map controls">
+        <div className={styles.editorHeader}>
+          <div className="mode-switch" role="group" aria-label="Interaction mode">
+            <Button variant="ghost" type="button" aria-pressed={mode === "rotate"} onClick={() => setMode("rotate")}><Rotate3D size={16} aria-hidden="true" />Rotate</Button>
+            <Button variant="ghost" type="button" aria-pressed={mode === "paint"} disabled={status === "error"} onClick={() => setMode("paint")}><Paintbrush size={16} aria-hidden="true" />Paint</Button>
+          </div>
+          <p id="scene-help" className={styles.sceneHelp} aria-live="polite">{help}</p>
+          <p id="scene-keyboard-help" className={styles.visuallyHidden}>Keyboard: use arrow keys to turn, + / − to zoom, or Home to reset. Ctrl or ⌘ + Z undoes a stroke.</p>
+        </div>
+        <section className={styles.viewControls} aria-labelledby="viewpoints-heading">
+          <h3 id="viewpoints-heading">Viewpoints</h3>
+          <div className="view-switch" role="group" aria-label="Camera views">{VIEWS.map(next =>
+            <Button variant="ghost" type="button" key={next} aria-pressed={view === next} onClick={() => changeView(next)}>{viewLabel(next)}</Button>
+          )}</div>
+          <FocusButtons onFocus={target => handle.focus(target)} />
+        </section>
+        <BrushToolbar brush={brush} onBrush={updateBrush} canUndo={canUndo} onUndo={() => handle.undo()} observations={observations} disabled={unavailable} />
+        <div className={styles.shapeControls}>
+          <Button variant="outline" type="button" className={styles.shapeToggle} aria-expanded={shapeOpen} aria-controls="body-shape-panel" onClick={() => setShapeOpen(open => !open)}>
+            {shapeOpen ? "Hide body shape" : "Adjust body shape"}
+          </Button>
+          <div id="body-shape-panel" hidden={!shapeOpen}><BodyShapePanel shape={bodyShape} onChange={setBodyShape} /></div>
+        </div>
+      </aside>
     </div>
-    <p className="keyboard-help">Keyboard: focus the body, then use arrow keys to turn, + / − to zoom, or Home to reset. Ctrl or ⌘ + Z undoes a stroke.</p>
   </section>;
 }
 

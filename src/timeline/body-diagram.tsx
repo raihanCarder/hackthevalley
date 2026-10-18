@@ -53,9 +53,9 @@ export function BodyDiagram({ observations, selectedRegionId, onSelectRegion }: 
           key={region.regionId}
           d={region.d}
           fillRule="evenodd"
-          fill={obs ? PAIN_COLORS[obs.painType] : "#d3d5d6"}
+          fill={obs ? PAIN_COLORS[obs.painType] : "#52575a"}
           fillOpacity={obs ? Math.min(1, Math.max(.55, obs.peakIntensity / 10)) : 1}
-          stroke={selected ? "#203b32" : "#a9adb0"}
+          stroke={selected ? "var(--primary)" : "#989fa3"}
           strokeWidth={selected ? 2.2 : .6}
           className={styles.diagramRegion}
           data-region={region.regionId}
@@ -70,7 +70,7 @@ export function BodyDiagram({ observations, selectedRegionId, onSelectRegion }: 
           }}
         ><title>{describe(region.regionId)}</title></path>;
       })}
-      <path d={view.outline} fill="none" stroke="#6d8476" strokeWidth={1} fillRule="evenodd" pointerEvents="none" />
+      <path d={view.outline} fill="none" stroke="#a0b3a7" strokeWidth={1} fillRule="evenodd" pointerEvents="none" />
     </svg>
     <figcaption><strong>{view.label}</strong>{view.note ? <span>{view.note}</span> : null}</figcaption>
   </figure>;

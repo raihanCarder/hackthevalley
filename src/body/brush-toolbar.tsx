@@ -1,6 +1,7 @@
 "use client";
 
 import { Eraser, Paintbrush, Undo2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { PAIN_LABELS, PAIN_TYPES, REGION_IDS, type PainType, type RegionalObservation } from "@/domain/contracts";
 import { BRUSH_RADII, BRUSH_SIZE_LABELS, BRUSH_SIZES, type BrushSettings } from "./brush";
 import { PAIN_COLORS, PainSwatch } from "./pain-swatch";
@@ -48,9 +49,9 @@ export function BrushToolbar({ brush, onBrush, canUndo, onUndo, observations, di
     </fieldset>
 
     <div className={styles.tools} role="group" aria-label="Tool">
-      <button type="button" aria-pressed={brush.tool === "brush"} disabled={disabled} onClick={() => onBrush({ tool: "brush" })}><Paintbrush size={18} strokeWidth={1.8} aria-hidden="true" />Brush</button>
-      <button type="button" aria-pressed={brush.tool === "eraser"} disabled={disabled} onClick={() => onBrush({ tool: "eraser" })}><Eraser size={18} strokeWidth={1.8} aria-hidden="true" />Eraser</button>
-      <button type="button" className={styles.undo} disabled={disabled || !canUndo} onClick={onUndo} aria-keyshortcuts="Control+Z Meta+Z"><Undo2 size={18} strokeWidth={1.8} aria-hidden="true" />Undo</button>
+      <Button variant="outline" type="button" aria-pressed={brush.tool === "brush"} disabled={disabled} onClick={() => onBrush({ tool: "brush" })}><Paintbrush size={16} strokeWidth={1.8} aria-hidden="true" />Brush</Button>
+      <Button variant="outline" type="button" aria-pressed={brush.tool === "eraser"} disabled={disabled} onClick={() => onBrush({ tool: "eraser" })}><Eraser size={16} strokeWidth={1.8} aria-hidden="true" />Eraser</Button>
+      <Button variant="ghost" type="button" className={styles.undo} disabled={disabled || !canUndo} onClick={onUndo} aria-keyshortcuts="Control+Z Meta+Z"><Undo2 size={16} strokeWidth={1.8} aria-hidden="true" />Undo</Button>
     </div>
     {brush.tool === "eraser" && <p className={styles.toolNote}>Erasing removes {PAIN_LABELS[brush.painType].toLowerCase()} only. Other sensations stay.</p>}
 
