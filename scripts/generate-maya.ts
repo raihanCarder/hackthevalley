@@ -97,7 +97,7 @@ export async function generateMayaEntries(): Promise<DailyEntry[]> {
     if (i >= 4) {
       const day = i - 4;
       // Surface radii in metres on the mannequin-v2 body (geodesic brush), growing as the leg burning extends.
-      paint(engine, "back-lower-torso", "back", "aching", NOTE_ACHING_RATINGS[localDate] ?? 4.2 + 1.2 * Math.sin(day * .45), .095 + .01 * Math.cos(day * .3));
+      paint(engine, "back-lower-torso", "back", "aching", NOTE_ACHING_RATINGS[localDate] ?? 4.2 + 1.2 * Math.sin(day * .45), .087 + .008 * Math.cos(day * .3));
       if (i >= 27) paint(engine, "left-thigh", "front", "burning", 4.5 + Math.min(2, (i - 27) * .15) + .4 * Math.sin(i - 27), .06 + Math.min(.045, (i - 27) * .0035));
       if (i >= 34) paint(engine, "left-calf", "front", "burning", 4.2 + Math.min(1.8, (i - 34) * .2), .04 + Math.min(.035, (i - 34) * .005));
     }
