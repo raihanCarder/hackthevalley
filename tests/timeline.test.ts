@@ -202,3 +202,12 @@ test("computeReportEvidence provides exact consistent data for Owner D", () => {
   assert.equal(calfBurning.presentDays, 8);
   assert.equal(calfBurning.firstRecordedDate, "2026-10-10");
 });
+
+test("comparisons never treat an unrecorded date as empty or compare different profiles", () => {
+  const marked = MAYA_ENTRIES[34];
+  const missing = compareDates(null, marked, "2026-10-09" as LocalDate, marked.localDate);
+  assert.deepEqual(missing.newlyMarked, []);
+  assert.deepEqual(missing.noLongerMarked, []);
+  assert.match(missing.descriptiveObservations[0], /cannot be compared as zero pain/);
+  assert.throws(() => compareDates(marked, { ...marked, profileId: "another" }, marked.localDate, marked.localDate), /same profile/);
+});

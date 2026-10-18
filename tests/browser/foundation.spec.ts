@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { BODY_MAP_VERSION } from "../../src/domain/contracts";
 
 test("deep links, Node route, and browser-only renderer load without hydration errors", async ({ page, request }) => {
   const errors: string[] = [];
@@ -11,7 +12,7 @@ test("deep links, Node route, and browser-only renderer load without hydration e
   await expect(page.locator(".scene-mount")).toHaveAttribute("data-status", "ready");
   const response = await request.get("/api/status");
   expect(response.ok()).toBeTruthy();
-  expect(await response.json()).toMatchObject({ milestone: "foundation", bodyMapVersion: "mannequin-v1" });
+  expect(await response.json()).toMatchObject({ milestone: "foundation", bodyMapVersion: BODY_MAP_VERSION });
   expect(errors).toEqual([]);
 });
 
@@ -71,7 +72,7 @@ test("navigation remounts a single working scene", async ({ page }) => {
   for (let i = 0; i < 2; i++) {
     await expect(page.locator(".scene-mount")).toHaveAttribute("data-status", "ready");
     await page.getByRole("link", { name: "History", exact: true }).click();
-    await expect(page.locator("canvas")).toHaveCount(0);
+    await expect(page.getByRole("region", { name: "Body map", exact: true })).toHaveCount(0);
     await page.getByRole("link", { name: "Check-in", exact: true }).click();
   }
   await expect(page.locator(".scene-mount")).toHaveAttribute("data-status", "ready");

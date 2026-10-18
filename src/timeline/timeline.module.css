@@ -298,39 +298,88 @@
 }
 
 .canvasStage {
-  height: 440px;
+  min-height: 440px;
   position: relative;
 }
 
 /* 2D Body Diagram */
 .diagramStage {
-  height: 440px;
   display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 16px;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 12px;
   background: var(--stage);
 }
 
+.diagramMainRow {
+  display: flex;
+  justify-content: center;
+  gap: 18px;
+}
+
+.diagramDetailRow {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  align-items: end;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+
+.diagramMain, .diagramDetail {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+}
+
+.diagramMain .diagramSvg {
+  width: min(100%, 190px);
+  height: auto;
+}
+
+.diagramDetail .diagramSvg {
+  width: 100%;
+  max-height: 110px;
+}
+
+.diagramStage figcaption {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.diagramStage figcaption span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
 .diagramSvg {
-  max-height: 100%;
-  width: auto;
+  display: block;
 }
 
 .diagramSideLabel {
   font-size: 11px;
   fill: var(--muted);
-  font-weight: bold;
 }
 
 .diagramRegion {
   cursor: pointer;
-  transition: fill 0.2s ease, stroke 0.2s ease;
+  transition: fill-opacity .15s;
 }
 
 .diagramRegion:hover {
+  fill-opacity: .8;
+}
+
+.diagramRegion:focus-visible {
+  outline: none;
   stroke: var(--accent);
-  stroke-width: 1.5px;
+  stroke-width: 2.5px;
 }
 
 /* Active Day Card */
@@ -673,7 +722,25 @@
   .statGrid {
     grid-template-columns: 1fr;
   }
-  .canvasStage, .diagramStage {
-    height: 380px;
+  .diagramDetailRow {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
+}
+.comparisonMaps { display: grid; gap: 16px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.rangeControls { max-width: 640px; margin-block: 16px; }
+.analysisColumn[hidden], .scrubberCard[hidden] { display: none; }
+.comparisonMaps h3 { font-size: 14px; }
+.comparisonTable { overflow-x: auto; margin-block: 16px; }
+.comparisonTable table { width: 100%; border-collapse: collapse; font-size: 12px; text-align: left; }
+.comparisonTable th, .comparisonTable td { padding: 8px; border-bottom: 1px solid var(--border); }
+.comparisonTable caption { text-align: left; margin-block: 8px; font-weight: 700; }
+@media (max-width: 900px) { .comparisonMaps { grid-template-columns: minmax(0, 1fr); } }
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }

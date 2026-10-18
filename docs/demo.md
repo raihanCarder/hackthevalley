@@ -1,89 +1,32 @@
-# Judging Demonstration Guide: Pain Map Journal
+# Pain journal demonstration
 
-Rehearsal guide for the hackathon presentation. Demonstrates the two primary product selling points: **direct 3D body interaction** and **longitudinal pain analysis over time**.
+The demonstration centers on direct 3D painting and change over time. The report is the final supporting step. Maya is synthetic; these are recorded markings, not a diagnosis or prediction.
 
-## Demo Arc (3-5 Minutes)
+## Start without external services
 
-```
-[1. 3D Check-in] ──> [2. Maya 6-Week Replay] ──> [3. Regional Trends] ──> [4. Date Comparison] ──> [5. Appointment Report]
-```
+Run `npm ci`, then `npm run dev`, and open http://localhost:3000. Choose **This browser (IndexedDB)**. No database or Gemini key is needed. Avoid overwriting an existing `.env.local`; omit service settings in a fresh demo environment to rehearse the disconnected path.
 
----
+## Rehearse the demo (3–5 minutes)
 
-### Step 1: Check-in & Direct 3D Interaction (`/`)
-1. **Show the 3D Body**:
-   - Rotate the mannequin in 3D using mouse drag or arrow keys.
-   - Click named camera buttons: `Front`, `Back`, `Your left`, `Your right`.
-2. **Key Talking Point**:
-   > *"Existing pain journals rely on flat 1-to-10 numbers or generic checkboxes. We allow patients to inspect and mark sensations directly on an anatomically faithful 3D mannequin with 19 distinct body regions."*
+1. **Paint and save.** Turn the body to inspect it. Choose aching, an intensity, and Paint; mark the lower back or patient-left calf. Add burning over part of the same location. Show selected-layer erase and Undo, then save with a written note. Reload the same date to show the exact markings and note. A skipped date remains unrecorded. On a later date, copy the previous map, edit a note, and save; the source stays unchanged.
+2. **Play Maya.** Open History. Identify Maya's **Synthetic · Read-only** label. Scrub to September 6 and play at 2x. The four early check-ins are explicitly empty; lower-back aching starts September 10, thigh burning October 3, and calf burning October 10. Front/back views expose the actual saved markings. Playback stops October 17; scrubbing pauses it.
+3. **Inspect regional trends.** Choose Lower Back / aching: 38 of 42 recorded days, first September 10, last October 17, highest peak 6.0/10. Select Left Thigh / burning (15 recorded days) and Left Calf / burning (8). Change the analysis range. Explain peak intensity versus map coverage; coverage is a body-map fraction, not physical skin area. Missing check-ins are gaps, not zeros.
+4. **Compare dates.** Use Thigh Onset (October 2 vs 3) and Calf Spread (October 3 vs 10). Inspect both labeled saved maps and the peak/coverage table. Newly or no-longer marked regions describe the entries without asserting a cause. On narrow screens the two maps stack, retaining their dates and labels.
+5. **Return to Visitor.** Visitor history contains the earlier saved drawings and never Maya's entries. With only one recorded date, playback is disabled and that map remains inspectable. Missing and explicitly empty dates have different labels. Switching profiles restores the selected date/range.
+6. **Prepare the report.** Open Appointment report, initially showing Maya. Confirm the 42 recorded days, four empty check-ins, front/back range composites, three region/sensation rows, and patient-attributed partial-relief wording. The composite shows the strongest marking saved at each location across the range, not simultaneous pain. Print/Save as PDF fits Maya's default report on one A4 or Letter page in Chromium. Visitor reports use saved records only.
+7. **Gemini when configured.** Add your server-side `GEMINI_API_KEY` and `GEMINI_MODEL`, restart, and click Organize with Gemini. This explicit action sends the saved facts/notes. A validated response names Gemini and its model. Missing keys, errors, invalid responses, and timeouts retain the labeled factual summary and retry. Never describe the factual fallback as Gemini output.
 
----
+## Regeneration and checks
 
-### Step 2: Longitudinal Playback with Maya (`/history`)
-1. **Navigate to History**: Click `History` in the top navigation.
-2. **Profile Identification**:
-   - Point out the `Synthetic · Read-only` badge on Maya's profile.
-   - Note that Maya provides 42 consecutive daily check-ins (September 6 to October 17, 2026).
-3. **Playback Demo**:
-   - Click `Play` in the scrubber controls.
-   - Watch the scrubber advance chronologically across the six-week timeline.
-   - Observe how early days (Sept 6–9) are pain-free check-ins, followed by lower back aching starting September 10.
-   - Note how playback automatically stops at the final date (October 17).
-4. **Key Talking Point**:
-   > *"Pain isn't static—it evolves. The chronological playback lets both patients and clinicians see how symptoms change day-by-day rather than relying on memory."*
-
----
-
-### Step 3: Regional Trend Analysis (`/history`)
-1. **Select Lower Back & Aching**:
-   - Show the summary stat cards:
-     - **38 / 42 recorded days** (90.5% frequency).
-     - **First Recorded**: September 10, 2026.
-     - **Peak Intensity**: 6.4 / 10.
-   - Show the interactive SVG trend chart displaying peak intensity and map coverage.
-2. **Switch to Left Thigh & Burning**:
-   - Select `Left Thigh` and `Burning`.
-   - Observe the chart: zero until October 3, then sudden onset (15 / 42 days).
-3. **Switch to Left Calf & Burning**:
-   - Select `Left Calf` and `Burning`.
-   - Observe the chart: onset on October 10 (8 / 42 days).
-4. **Key Talking Point**:
-   > *"We compute both peak intensity (severity) and map coverage (surface area). Missing check-in days appear as distinct gaps in the trend, and frequency counts use recorded days as the denominator to prevent data distortion."*
-
----
-
-### Step 4: Two-Date Comparison (`/history` -> Compare Dates)
-1. **Click `Compare Dates` tab**:
-2. **Use Preset 1: Thigh Onset (Oct 2 vs Oct 3)**:
-   - Click the `Thigh Onset` preset button.
-   - Point out the highlighted **Newly Marked Pain Region**:
-     - *Left Thigh: Burning (Peak 5.2/10, 16% coverage)*.
-3. **Use Preset 2: Calf Spread (Oct 3 vs Oct 10)**:
-   - Click `Calf Spread` preset button.
-   - Point out that Left Thigh burning remains persistent, while **Left Calf burning** is newly marked.
-4. **Key Talking Point**:
-   > *"The comparison objectively identifies newly marked and resolved pain areas with exact metric deltas, using purely descriptive language without making automated diagnoses."*
-
----
-
-### Step 5: Profile Isolation Check
-1. Switch to `Visitor (My Journal)`.
-2. Notice that Maya's synthetic data is immediately cleared, showing the visitor's clean empty state.
-3. Switch back to `Maya` to instantly restore the full 42-day dataset.
-
----
-
-## Reproducibility & Offline Verification
-
-The entire Maya dataset and analysis engine are 100% deterministic and run offline without cloud databases or external API keys:
-
-```bash
-# 1. Regenerate Maya synthetic fixture
-node --import tsx scripts/generate-maya.ts
-
-# 2. Run automated verification suite
+```sh
+npm run demo:generate
 npm test
-
-# 3. Run production typecheck
 npm run typecheck
+npm run build
+# Start dev or production server first:
+npm run test:browser
 ```
+
+Regeneration uses the normal paint/reducer/encoding pipeline and fixed dates/formulas. All 42 records are checked against decoded maps. The required onset dates and counts are asserted by the generator itself.
+
+For PostgreSQL, follow [journal setup](journal.md), select Local PostgreSQL, and repeat the same visitor save/reload/history/report path. Maya, deterministic analysis, and printing remain independent of the database and Gemini. See [integration verification](integration-verification.md) for observed desktop/touch checks, provider simulation, and outstanding demo-device/live-provider limits.

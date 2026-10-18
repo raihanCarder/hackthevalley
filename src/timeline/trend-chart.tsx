@@ -163,7 +163,7 @@ export function TrendChart({ trend, activeDate, onSelectDate }: Props) {
                 fill="#b88"
                 opacity="0.5"
               >
-                <title>{pt.localDate}: Unrecorded gap</title>
+                <title>{`${pt.localDate}: Unrecorded gap`}</title>
               </circle>
             );
           }

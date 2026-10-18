@@ -1,6 +1,6 @@
 # Project Summary
 
-We are planning a workable MVP of a browser-based pain journal. The two main selling points are **painting pain directly on a rotatable 3D body** and **analyzing how that pain changes over time**. The 3D interaction and longitudinal analysis must drive the product, interface, build priorities, and demo. A person paints location, sensation, and intensity, then saves a daily check-in with an optional written note. Playback and regional trends show changes in intensity, coverage, frequency, and newly marked regions. A synthetic patient, Maya, supplies six weeks of sample history. A printable appointment report supports this experience with descriptive observations, without diagnosing or recommending treatment.
+We are completing a workable MVP of a browser-based pain journal. The two main selling points are **painting pain directly on a rotatable 3D body** and **analyzing how that pain changes over time**. The 3D interaction and longitudinal analysis must drive the product, interface, build priorities, and demo. A person paints location, sensation, and intensity, then saves a daily check-in with an optional written note. Playback and regional trends show changes in intensity, coverage, frequency, and newly marked regions. A synthetic patient, Maya, supplies six weeks of sample history. A printable appointment report supports this experience with descriptive observations, without diagnosing or recommending treatment.
 
 ## Proposed Tech Stack
 
@@ -10,7 +10,7 @@ We are planning a workable MVP of a browser-based pain journal. The two main sel
 | 3D interaction | Three.js and custom shaders | Body rotation, UV-based painting, and four animated pain types |
 | API | Next.js Route Handlers using the Node.js runtime | Save/load check-ins, compute trends, and make server-side AI calls |
 | Database | Plain PostgreSQL with the `pg` driver and SQL migrations | Store exact paint maps, dates, notes, and regional measurements |
-| Report AI | Gemini API, if included in the agreed MVP | Organize recorded evidence into a descriptive summary, with a factual fallback |
+| Report AI | Gemini API (confirmed; user supplies key) | Organize recorded evidence into a descriptive summary, with a factual fallback |
 | Export | Browser print / Save as PDF | Printable appointment report |
 
 Use ordinary PostgreSQL tables; Tiger Data, TimescaleDB, hypertables, and a time-series extension are not required. Prioritize a working end-to-end demo over additional infrastructure.
@@ -25,8 +25,8 @@ Use ordinary PostgreSQL tables; Tiger Data, TimescaleDB, hypertables, and a time
 - Save the actual paint maps as well as region statistics so playback restores the original markings.
 - Distinguish a missing check-in from an explicitly saved empty map. Label Maya's records as synthetic.
 - Voice capture, automatic note extraction, and extra charts in the printable report are deferred optional work. The timeline's basic regional trends and comparison view are core MVP features.
-- Account scope and whether live Gemini belongs in the first MVP are awaiting clarification. Do not assume production authentication or clinical deployment is required.
-- The current workflow is planning only. Do not begin application implementation until the user asks to apply the change.
+- Retain browser-local IndexedDB and explicitly selected local PostgreSQL with temporary visitor sessions. Google Gemini is included; the user supplies the key/model. Production authentication and clinical deployment are outside scope.
+- The user has authorized implementation and integration of the full checklist. Check off only verified completion gates; record unavailable live-provider or demo-device checks accurately.
 - Product scope: [proposal](openspec/changes/pain-map-journal/proposal.md).
 - Architecture and stack: [design](openspec/changes/pain-map-journal/design.md).
 - Ordered implementation checklist: [tasks](openspec/changes/pain-map-journal/tasks.md).

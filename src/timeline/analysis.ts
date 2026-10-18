@@ -8,6 +8,9 @@ import {
   type PainType,
   type RegionId,
 } from "../domain/contracts";
+import { REGION_LABELS } from "../body/region-labels";
+
+export type ObservationEntry = Pick<DailyEntry, "id" | "profileId" | "localDate" | "updatedAt" | "observations">;
 
 export interface DailyTrendPoint {
   localDate: LocalDate;
@@ -52,8 +55,8 @@ export interface DateComparisonRegionChange {
 export interface DateComparisonResult {
   earlierDate: LocalDate;
   laterDate: LocalDate;
-  earlierEntry: DailyEntry | null;
-  laterEntry: DailyEntry | null;
+  earlierEntry: ObservationEntry | null;
+  laterEntry: ObservationEntry | null;
   newlyMarked: DateComparisonRegionChange[];
   noLongerMarked: DateComparisonRegionChange[];
   persistentChanges: DateComparisonRegionChange[];
@@ -158,10 +161,10 @@ export function formatFullDate(dateStr: string): string {
 }
 
 export function formatRegionName(regionId: RegionId): string {
-  if (regionId === "back-lower-torso") return "Lower Back";
-  if (regionId === "back-upper-torso") return "Upper Back";
-  return regionId
-    .split("-")
+  const base = REGION_LABELS[regionId] ?? regionId;
+  return base
+    .replace(/^Your /, "")
+    .split(" ")
     .map(word => word[0].toUpperCase() + word.slice(1))
     .join(" ");
 }
@@ -172,7 +175,7 @@ export function formatRegionName(regionId: RegionId): string {
  * Denominator for frequency is strictly recorded days.
  */
 export function computeRegionTrend(
-  entries: readonly DailyEntry[],
+  entries: readonly ObservationEntry[],
   options: {
     profileId: string;
     regionId: RegionId;
@@ -184,7 +187,7 @@ export function computeRegionTrend(
   const { profileId, regionId, painType, startDate, endDate } = options;
   const dates = listCalendarDates(startDate, endDate);
 
-  const entryByDate = new Map<LocalDate, DailyEntry>();
+  const entryByDate = new Map<LocalDate, ObservationEntry>();
   for (const entry of entries) {
     if (entry.profileId === profileId && entry.localDate >= startDate && entry.localDate <= endDate) {
       entryByDate.set(entry.localDate, entry);
@@ -278,11 +281,16 @@ export function computeRegionTrend(
  * Accurately identifies newly marked and no-longer-marked regions without diagnostic assertions.
  */
 export function compareDates(
-  earlierEntry: DailyEntry | null,
-  laterEntry: DailyEntry | null,
+  earlierEntry: ObservationEntry | null,
+  laterEntry: ObservationEntry | null,
   earlierDate: LocalDate,
   laterDate: LocalDate
 ): DateComparisonResult {
+  if (earlierEntry && laterEntry && earlierEntry.profileId !== laterEntry.profileId) throw new Error("Compare dates from the same profile.");
+  if (!earlierEntry || !laterEntry) return {
+    earlierDate, laterDate, earlierEntry, laterEntry, newlyMarked: [], noLongerMarked: [], persistentChanges: [], allChanges: [],
+    descriptiveObservations: ["Both dates need a saved check-in. An unrecorded date cannot be compared as zero pain."],
+  };
   const earlierObsMap = new Map<string, { peak: number; coverage: number }>();
   if (earlierEntry) {
     for (const o of earlierEntry.observations) {
@@ -382,7 +390,7 @@ export function compareDates(
  * Shared contract for Owner D (Milestone 5) to eliminate duplicate trend reducers.
  */
 export function computeReportEvidence(
-  entries: readonly DailyEntry[],
+  entries: readonly ObservationEntry[],
   options: {
     profileId: string;
     startDate: LocalDate;
@@ -392,18 +400,17 @@ export function computeReportEvidence(
   const { profileId, startDate, endDate } = options;
   const dates = listCalendarDates(startDate, endDate);
 
-  const entryByDate = new Map<LocalDate, DailyEntry>();
+  const entryByDate = new Map<LocalDate, ObservationEntry>();
   let explicitEmptyDays = 0;
 
   for (const entry of entries) {
     if (entry.profileId === profileId && entry.localDate >= startDate && entry.localDate <= endDate) {
       entryByDate.set(entry.localDate, entry);
-      if (entry.observations.length === 0) {
-        explicitEmptyDays++;
-      }
+
     }
   }
 
+  explicitEmptyDays = [...entryByDate.values()].filter(entry => entry.observations.length === 0).length;
   const recordedDays = entryByDate.size;
   const missingDays = dates.length - recordedDays;
   const regionalEvidence: RegionEvidenceSummary[] = [];
