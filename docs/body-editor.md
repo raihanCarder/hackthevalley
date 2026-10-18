@@ -40,7 +40,7 @@ Typical save path for B: `encodePaintSnapshot(handle.snapshot())` plus `reduceRe
 
 ## The body model (mannequin-v2)
 
-The editor and viewers render a realistic, neutral figure built from the CC0 MakeHuman base mesh: smooth skin with a modelled face, eyes, ears, separate fingers, and toes. Hair, clothing, and genital helpers are removed. `npm run body:generate` turns the pinned source (`scripts/body/source/`) into these files:
+The editor and viewers render a realistic, neutral figure built from the CC0 MakeHuman base mesh: smooth skin with a modelled face, eyes, ears, separate fingers, and toes. Hair, clothing, and genital helpers are removed, and the chest is smoothed so no shape has nipples. `npm run body:generate` turns the pinned source (`scripts/body/source/`) into these files:
 
 - `public/body/mannequin-v2.json`: render mesh, UV charts, welded topology, 45-region labels, landmarks, and camera presets.
 - The embedded region raster.
@@ -52,7 +52,7 @@ Both the editor and `BodyViewer` offer "Zoom to" close-ups (Face, Your left/righ
 
 ## Body shape and appearance
 
-The figure is neutral grey with a painted-on crop top and shorts, so it reads clearly as a mannequin and every pain color stands out. There is no skin-tone setting.
+The figure is plain neutral grey with no clothing, so it reads clearly as a mannequin and every pain color stands out. There is no skin-tone setting.
 
 "Adjust body shape" in the editor opens these optional sliders:
 

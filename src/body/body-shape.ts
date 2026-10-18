@@ -18,13 +18,14 @@ export interface BodyShapePack {
   vertexCount: number;
   /** Fraction of the female-side sex offset kept on the chest (keeps every setting modest). */
   chestCap: number;
-  /** Welded vertices of the front chest, where the cap applies. */
-  chest: string;
+  /** How strongly the cap applies per welded vertex: uint32 indices and uint8 strengths (255 = full), fading out smoothly. */
+  chest: { indices: string; strengths: string };
   morphs: Record<string, EncodedMorph>;
   source: { name: string; commit: string; license: string; files: { path: string; sha256: string }[] };
 }
 interface Morph { indices: Uint32Array; values: Float32Array }
-export interface DecodedShapePack { vertexCount: number; chestCap: number; chest: Uint8Array; morphs: Map<string, Morph> }
+/** `chest` holds the cap strength (0–1) of every welded vertex. */
+export interface DecodedShapePack { vertexCount: number; chestCap: number; chest: Float32Array; morphs: Map<string, Morph> }
 
 const AGE_MAX_OLD = .7; // the "old" target weight at the top of the slider (about 70 of MakeHuman's 25→90 years)
 /** MakeHuman's height and leg-length targets reach unrealistic extremes; the sliders use part of their range. */
@@ -55,10 +56,11 @@ export function decodeShapePack(pack: BodyShapePack): DecodedShapePack {
     if (values.length !== indices.length * 3) throw new Error(`Corrupt body-shape morph ${name}.`);
     morphs.set(name, { indices, values });
   }
-  const chest = new Uint8Array(pack.vertexCount);
-  const chestBytes = base64ToBytes(pack.chest);
+  const chest = new Float32Array(pack.vertexCount);
+  const chestBytes = base64ToBytes(pack.chest.indices), strengths = base64ToBytes(pack.chest.strengths);
   const chestView = new DataView(chestBytes.buffer, chestBytes.byteOffset, chestBytes.byteLength);
-  for (let i = 0; i < chestBytes.length / 4; i++) chest[chestView.getUint32(i * 4, true)] = 1;
+  if (strengths.length * 4 !== chestBytes.length) throw new Error("Corrupt body-shape chest cap.");
+  for (let i = 0; i < strengths.length; i++) chest[chestView.getUint32(i * 4, true)] = strengths[i] / 255;
   return { vertexCount: pack.vertexCount, chestCap: pack.chestCap, chest, morphs };
 }
 
@@ -89,14 +91,14 @@ export function shapeOffsets(pack: DecodedShapePack, shape: BodyShape, out = new
     if (!morph) throw new Error(`Missing body-shape morph ${name}.`);
     const { indices, values } = morph;
     for (let i = 0; i < indices.length; i++) {
-      const v = indices[i], w = pack.chest[v] ? weight * chestScale : weight;
+      const v = indices[i], w = weight * (1 + (chestScale - 1) * pack.chest[v]);
       out[v * 3] += values[i * 3] * w; out[v * 3 + 1] += values[i * 3 + 1] * w; out[v * 3 + 2] += values[i * 3 + 2] * w;
     }
   };
   const male = shape.sex, female = 1 - shape.sex;
   const old = shape.age * AGE_MAX_OLD, young = 1 - old;
   // Ethnic-average shape, relative to the default (sex 0.5, young): only the difference is applied.
-  // On the female side the whole ethnic offset is scaled down on the front chest, keeping every setting modest.
+  // On the female side the whole ethnic offset is scaled down around the breasts, keeping every setting modest.
   const chest = female > .5 ? pack.chestCap : 1;
   add("female-young", female * young - .5, chest);
   add("male-young", male * young - .5, chest);

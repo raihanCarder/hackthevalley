@@ -208,7 +208,6 @@ export default function BodyScene({ handle, editable, mode, view, viewRequest, b
         geometry.setAttribute("normal", new THREE.Float32BufferAttribute(asset.normals, 3));
         geometry.setAttribute("uv", new THREE.Float32BufferAttribute(asset.uvs, 2));
         geometry.setIndex(asset.indices);
-        geometry.setAttribute("garment", new THREE.Float32BufferAttribute(asset.garment, 3));
         texture = createPaintTexture();
         material = createPainMaterial(texture);
         const body = new THREE.Mesh(geometry, material);

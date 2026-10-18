@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { BODY_MAP_VERSION, REGION_IDS } from "../../src/domain/contracts";
+import { BODY_MAP_VERSION } from "../../src/domain/contracts";
 import { BODY_SHAPE_SLIDERS, DEFAULT_BODY_SHAPE, decodeShapePack, isDefaultShape, normalizeShape, shapeOffsets, type BodyShape, type BodyShapePack } from "../../src/body/body-shape";
 import { createMorpher } from "../../src/body/body-morph";
 import { buildBodyAtlas, surfaceHitNear } from "../../src/body/atlas";
@@ -9,6 +9,8 @@ import { PaintEngine } from "../../src/body/paint-engine";
 import { reduceRegions } from "../../src/body/regions";
 import { intensityToByte } from "../../src/body/layers";
 import type { MannequinAsset } from "../../src/body/mannequin";
+import { NIPPLE_SOURCE_RANGES } from "../../scripts/body/chest";
+import { loadSourceMesh } from "../../scripts/body/mesh";
 
 const raw = JSON.parse(readFileSync(`public/body/shape-${BODY_MAP_VERSION}.json`, "utf8")) as BodyShapePack;
 const pack = decodeShapePack(raw);
@@ -81,25 +83,53 @@ test("reshaped figures stand on the ground; height and leg sliders change statur
   }
   assert.equal(heights.default, 1);
   assert.ok(heights.short < .95 && heights.tall > 1.05 && heights.tall < 1.25 && heights["long legs"] > 1.02, JSON.stringify(heights));
-  // The female side of the sex slider is scaled down on the front chest.
+  // The female side of the sex slider is scaled down over the breasts.
   const female = shapeOffsets(pack, shape({ sex: 0 }));
   const uncapped = shapeOffsets({ ...pack, chestCap: 1 }, shape({ sex: 0 }));
   let capped = 0, full = 0;
-  pack.chest.forEach((inChest, v) => { if (inChest) { capped += Math.hypot(female[v * 3], female[v * 3 + 1], female[v * 3 + 2]); full += Math.hypot(uncapped[v * 3], uncapped[v * 3 + 1], uncapped[v * 3 + 2]); } });
+  pack.chest.forEach((strength, v) => { if (strength === 1) { capped += Math.hypot(female[v * 3], female[v * 3 + 1], female[v * 3 + 2]); full += Math.hypot(uncapped[v * 3], uncapped[v * 3 + 1], uncapped[v * 3 + 2]); } });
   assert.ok(capped <= full * pack.chestCap + 1e-6 && capped > 0);
 });
 
-test("the painted-on top and shorts only cover the torso, pelvis, and upper thighs", () => {
+test("the chest cap fades out smoothly, leaving no seam at the neck, shoulders, or under the chest", () => {
   const body = asset();
-  assert.equal(body.garment.length, body.weld.length * 3);
-  for (const chart of body.charts) for (let r = chart.vertexStart; r < chart.vertexStart + chart.vertexCount; r++) {
-    const [top, shorts] = [body.garment[r * 3], body.garment[r * 3 + 1]];
-    if (top) assert.match(chart.regionId, /torso/, `${chart.regionId} has the top zone`);
-    if (shorts) assert.match(chart.regionId, /pelvis|thigh|lower-torso/, `${chart.regionId} has the shorts zone`);
+  const edges: [number, number][] = [];
+  for (let t = 0; t < body.indices.length; t += 3) {
+    const [a, b, c] = [0, 1, 2].map(i => body.weld[body.indices[t + i]]);
+    for (const [u, v] of [[a, b], [b, c], [c, a]]) if (pack.chest[u] !== pack.chest[v]) edges.push([u, v]);
   }
-  const zoned = new Set(body.charts.filter(chart => {
-    for (let r = chart.vertexStart; r < chart.vertexStart + chart.vertexCount; r++) if (body.garment[r * 3] || body.garment[r * 3 + 1]) return true;
-    return false;
-  }).map(chart => chart.regionId));
-  for (const region of REGION_IDS.filter(id => /head|neck|arm|hand|finger|thumb|calf|foot|toe|eye|ear|nose|mouth/.test(id))) assert.ok(!zoned.has(region), `${region} stays uncovered`);
+  assert.ok(edges.length > 0);
+  for (const sex of [0, .25]) {
+    const largestJump = (offsets: Float32Array) => Math.max(...edges.map(([u, v]) =>
+      Math.hypot(offsets[u * 3] - offsets[v * 3], offsets[u * 3 + 1] - offsets[v * 3 + 1], offsets[u * 3 + 2] - offsets[v * 3 + 2])));
+    // A hard-edged cap tore the surface (55 mm across one edge at sex 0, against 12 mm uncapped).
+    const capped = largestJump(shapeOffsets(pack, shape({ sex }))), uncapped = largestJump(shapeOffsets({ ...pack, chestCap: 1 }, shape({ sex })));
+    assert.ok(capped <= uncapped * 1.25, `sex ${sex}: ${(capped * 1000).toFixed(1)} mm vs ${(uncapped * 1000).toFixed(1)} mm uncapped`);
+  }
+});
+
+test("the chest has no nipples on any body shape", async () => {
+  const welded = new Map(loadSourceMesh().sourceIndex.map((source, v) => [source, v]));
+  const nipple = NIPPLE_SOURCE_RANGES.flatMap(([first, last]) => Array.from({ length: last - first + 1 }, (_, i) => welded.get(first + i)!));
+  for (const partial of [{}, { sex: 0 }, { sex: 1 }, { sex: 0, weight: 1, muscle: 1 }, { sex: 0, weight: 0, muscle: 0 }, { sex: 1, weight: 1, muscle: 1 }, { sex: 0, age: 1 }] as Partial<BodyShape>[]) {
+    const { atlas, result, asset: body } = await morphed(partial);
+    const p = atlas.vertices, normal = new Float32Array(atlas.vertexCount * 3);
+    body.weld.forEach((v, r) => { for (let axis = 0; axis < 3; axis++) normal[v * 3 + axis] = result.normals[r * 3 + axis]; });
+    // Height of each nipple-area vertex above the mean of its three-ring neighbourhood, along the surface normal.
+    // The modelled nipples stood 3.5–4.6 mm proud; smooth skin with the chest's own curvature stays well under 1 mm.
+    let worst = 0;
+    for (const v of nipple) {
+      const ring = new Set([v]);
+      for (let step = 0; step < 3; step++) for (const u of [...ring]) for (let i = atlas.neighborStart[u]; i < atlas.neighborStart[u + 1]; i++) ring.add(atlas.neighbors[i]);
+      ring.delete(v);
+      let height = 0;
+      for (let axis = 0; axis < 3; axis++) {
+        let mean = 0;
+        for (const u of ring) mean += p[u * 3 + axis];
+        height += (p[v * 3 + axis] - mean / ring.size) * normal[v * 3 + axis];
+      }
+      worst = Math.max(worst, height);
+    }
+    assert.ok(worst < 5e-4, `${JSON.stringify(partial)}: nipple area stands ${(worst * 1000).toFixed(2)} mm proud`);
+  }
 });
