@@ -8,6 +8,12 @@
 - Processing (this repository, `scripts/body/`): scaled to 1.96 m with feet at y = 0, +Z front, +X patient-left; quads split along the shorter diagonal; 45 patient-relative regions labelled from the skeleton and facial landmarks (`regions.ts`); region-aligned, fold-free UV charts packed into the 512x512 atlas at about 4.5 mm per texel with 5 px gutters (`charts.ts`); area-weighted smooth normals; landmarks and camera focus presets; and the 2D diagram traced from orthographic renders of the same region labels (`diagram.ts`).
 - Also generated: `region-atlas-mannequin-v2.png` (inspection copy, 0 = invalid, otherwise `REGION_IDS` index + 1), `src/body/region-raster-data.ts` (the same raster, run-length encoded for the shared reducer), and `src/body/diagram-data.ts`.
 
+## Default figure, body shapes, and appearance
+
+- **Default figure:** the displayed body is MakeHuman's own default person: the base mesh plus the equal-ethnicity average of the young-adult female and male shapes (sex 0.5). It is applied to positions only. Regions and UV charts are computed on the base mesh, so maps and measurements are unchanged.
+- **Body-shape sliders:** `shape-mannequin-v2.json` holds 24 compact morphs derived by `npm run body:shape` from 38 CC0 MakeHuman target files at the same pinned commit. Each file's SHA-256 is recorded in the pack, and each file declares its CC0 release. The morphs cover sex, age, muscle, weight, height, waist, shoulder width, hip width, and leg length. Breast, genital, and ethnicity controls are not used. The female side of the sex slider is capped on the front chest (35%), and the height and leg targets use a realistic part of their range.
+- **Appearance:** a neutral grey figure (no skin tone) with a painted-on crop top and shorts. The asset stores per-vertex zones and the base-mesh height, and the shader draws straight hems. The garment is display-only and never affects maps.
+
 Body-map version: `mannequin-v2`. Maps saved for `mannequin-v1` are rejected as incompatible rather than reinterpreted. Any change to the source, region rules, charts, or packing requires a new version. Measurements are map coverage of this model's surface, not anatomy.
 
 Audit: `tests/body.test.ts` checks that the asset, raster, and diagram reproduce from the pinned source; that charts are disjoint and no texel is covered twice; outward winding and seam-consistent normals; patient sides; region capacity; focus presets; and diagram coverage. Painting behaviour is tested in `tests/body/`.
