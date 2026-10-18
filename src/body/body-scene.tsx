@@ -11,7 +11,7 @@ import { intensityToByte, type PaintLayers } from "./layers";
 import type { CameraFocus, FocusTarget, MannequinAsset } from "./mannequin";
 import { createPainMaterial, createPaintTexture, packPaintTexture, STATIC_TIME } from "./pain-material";
 import { PaintEngine, type SurfaceHit } from "./paint-engine";
-import { DEFAULT_BODY_SHAPE, isDefaultShape, type BodyShape } from "./body-shape";
+import { DEFAULT_BODY_SHAPE, isNeutralShape, type BodyShape } from "./body-shape";
 import { createMorpher } from "./body-morph";
 
 type PointerHit = SurfaceHit & { normal: readonly [number, number, number] };
@@ -208,7 +208,6 @@ export default function BodyScene({ handle, editable, mode, view, viewRequest, b
         geometry.setAttribute("normal", new THREE.Float32BufferAttribute(asset.normals, 3));
         geometry.setAttribute("uv", new THREE.Float32BufferAttribute(asset.uvs, 2));
         geometry.setIndex(asset.indices);
-        geometry.setAttribute("garment", new THREE.Float32BufferAttribute(asset.garment, 3));
         texture = createPaintTexture();
         material = createPainMaterial(texture);
         const body = new THREE.Mesh(geometry, material);
@@ -231,9 +230,11 @@ export default function BodyScene({ handle, editable, mode, view, viewRequest, b
         // Body shape: morph the render mesh, the painting surface, the raycast meshes, and the framing together.
         const morpher = createMorpher(asset, atlas);
         let shapeRequest = 0;
+        // Settles once the latest requested shape is on screen (or has failed), so captures never show a stale figure.
+        let shapeSettled: Promise<void> = Promise.resolve();
         const setShape = (next: BodyShape) => {
           const request = ++shapeRequest;
-          morpher.apply(next).then(result => {
+          shapeSettled = morpher.apply(next).then(result => {
             if (cancelled || request !== shapeRequest) return; // a newer shape won
             const positionAttribute = geometry!.getAttribute("position") as THREE.BufferAttribute;
             const normalAttribute = geometry!.getAttribute("normal") as THREE.BufferAttribute;
@@ -371,6 +372,7 @@ export default function BodyScene({ handle, editable, mode, view, viewRequest, b
         };
 
         const capture = async ({ layers, views = ["front", "back"], width = 360, height = 600 }: CaptureOptions): Promise<BodyCaptures> => {
+          for (let waiting = shapeSettled; ; waiting = shapeSettled) { await waiting; if (waiting === shapeSettled) break; }
           const scale = 2;
           const captureTexture = layers ? createPaintTexture() : texture!;
           if (layers) packPaintTexture(captureTexture, layers, atlas!);
@@ -412,7 +414,7 @@ export default function BodyScene({ handle, editable, mode, view, viewRequest, b
           capture,
         };
         controller.current = ready;
-        if (!isDefaultShape(currentShape.current)) setShape(currentShape.current);
+        if (!isNeutralShape(currentShape.current)) setShape(currentShape.current);
         raf = requestAnimationFrame(loop);
         attached = ready;
         handle.attach(ready);

@@ -5,9 +5,10 @@ import { RotateCcw } from "lucide-react";
 import { DEFAULT_BODY_SHAPE, isDefaultShape, type BodyShape, type BodyShapeSlider } from "./body-shape";
 import styles from "./body.module.css";
 
-interface SliderSpec { id: BodyShapeSlider; label: string; low: string; high: string }
+/** `step` 1 locks a slider to its two ends (sex is female or male, never in between). */
+interface SliderSpec { id: BodyShapeSlider; label: string; low: string; high: string; step?: number }
 const MAIN: SliderSpec[] = [
-  { id: "sex", label: "Sex", low: "Female", high: "Male" },
+  { id: "sex", label: "Sex", low: "Female", high: "Male", step: 1 },
   { id: "height", label: "Height", low: "Shorter", high: "Taller" },
   { id: "weight", label: "Weight", low: "Lighter", high: "Heavier" },
   { id: "muscle", label: "Muscle", low: "Less", high: "More" },
@@ -28,7 +29,7 @@ export function BodyShapePanel({ shape, onChange, disabled = false }: { shape: B
     const describe = (n: number) => spec.id === "age" ? `about ${Math.round(25 + n * 45)} years` : n < .45 ? spec.low.toLowerCase() : n > .55 ? spec.high.toLowerCase() : "average";
     return <div key={spec.id} className={styles.shapeSlider}>
       <label htmlFor={`${id}-${spec.id}`}>{spec.label}</label>
-      <input id={`${id}-${spec.id}`} type="range" min={0} max={1} step={.01} value={value} disabled={disabled} aria-valuetext={describe(value)}
+      <input id={`${id}-${spec.id}`} type="range" min={0} max={1} step={spec.step ?? .01} value={value} disabled={disabled} aria-valuetext={describe(value)}
         onChange={event => onChange({ ...shape, [spec.id]: Number(event.target.value) })} />
       <div className={styles.scale} aria-hidden="true"><span>{spec.low}</span><span>{spec.high}</span></div>
     </div>;

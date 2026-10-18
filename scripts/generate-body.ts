@@ -7,6 +7,7 @@ import { encodeRegionRaster } from "../src/body/region-raster";
 import { decodeShapePack, type BodyShapePack } from "../src/body/body-shape";
 import { buildCharts, packCharts } from "./body/charts";
 import { buildDiagramView, type DiagramSpec } from "./body/diagram";
+import { chestSmoother } from "./body/chest";
 import { add, distance, dot, loadSourceMesh, normalize, scaleVec, SOURCE_SHA256, sub, vertexNormals, type Vec3 } from "./body/mesh";
 import { classifyTriangles } from "./body/regions";
 
@@ -15,11 +16,12 @@ const round = (value: number, places: number) => Number(value.toFixed(places)) |
 /**
  * MakeHuman's default figure is the base mesh plus the averaged young-adult female/male shape (sex 0.5). It is applied
  * to the displayed positions only: regions and UV charts are computed on the base mesh, so the map contract is the
- * same for every body shape. Feet stay on the ground.
+ * same for every body shape. The base positions get the same nipple smoothing as the shape morphs. Feet stay on the ground.
  */
-function defaultFigure(raw: Vec3[]): Vec3[] {
+function defaultFigure(mesh: ReturnType<typeof loadSourceMesh>): Vec3[] {
   const pack = decodeShapePack(JSON.parse(readFileSync(`public/body/shape-${BODY_MAP_VERSION}.json`, "utf8")) as BodyShapePack);
-  const positions = raw.map(p => [...p] as Vec3);
+  const smoothed = chestSmoother(mesh).smooth(Float64Array.from(mesh.positions.flat()));
+  const positions = mesh.positions.map((_, v) => [smoothed[v * 3], smoothed[v * 3 + 1], smoothed[v * 3 + 2]] as Vec3);
   for (const name of ["female-young", "male-young"]) {
     const morph = pack.morphs.get(name)!;
     for (let i = 0; i < morph.indices.length; i++) for (let axis = 0; axis < 3; axis++) positions[morph.indices[i]][axis] += morph.values[i * 3 + axis] * .5;
@@ -28,36 +30,19 @@ function defaultFigure(raw: Vec3[]): Vec3[] {
   return positions.map(([x, y, z]) => [x, y - floor, z]);
 }
 
-/**
- * Painted-on crop top and shorts (display only). Per vertex: [top zone, shorts zone, height on the base mesh]. The shader
- * cuts straight hems from the interpolated base height, so they stay smooth and follow the body through every reshape.
- */
-function garmentZones(mesh: ReturnType<typeof loadSourceMesh>, regions: RegionId[]): [number, number, number][] {
-  const of = mesh.positions.map(() => new Set<RegionId>());
-  mesh.triangles.forEach((triangle, t) => triangle.forEach(v => of[v].add(regions[t])));
-  const torso = ["front-upper-torso", "back-upper-torso", "front-lower-torso", "back-lower-torso"] as RegionId[];
-  return mesh.positions.map(([, y], v) => {
-    const set = [...of[v]];
-    const top = set.length > 0 && set.every(region => torso.includes(region)) ? 1 : 0;
-    const shorts = set.some(region => /pelvis|thigh|lower-torso/.test(region)) && set.every(region => /pelvis|thigh|lower-torso/.test(region)) ? 1 : 0;
-    return [top, shorts, Math.round(y * 1e4) / 1e4];
-  });
-}
-
 export function buildBody() {
   const mesh = loadSourceMesh();
   const regions = classifyTriangles(mesh);
   const charts = buildCharts(mesh.positions, mesh.triangles, regions);
   const { charts: packed, texelsPerMetre } = packCharts(charts, MAP_SIZE);
-  const garment = garmentZones(mesh, regions);
   // Everything displayed (and every landmark, preset, and diagram) uses MakeHuman's default figure.
-  mesh.positions = defaultFigure(mesh.positions);
+  mesh.positions = defaultFigure(mesh);
   const normals = vertexNormals(mesh.positions, mesh.triangles);
 
   // Render vertices: one per (chart, welded vertex); triangles grouped by chart.
   const asset: MannequinAsset = {
     bodyMapVersion: BODY_MAP_VERSION, mapSize: MAP_SIZE, texelsPerMetre: round(texelsPerMetre, 2),
-    positions: [], normals: [], uvs: [], indices: [], weld: [], garment: [], charts: [], landmarks: {}, focus: {} as Record<FocusTarget, CameraFocus>,
+    positions: [], normals: [], uvs: [], indices: [], weld: [], charts: [], landmarks: {}, focus: {} as Record<FocusTarget, CameraFocus>,
     source: { name: "MakeHuman hm08 base mesh", url: "https://github.com/makehumancommunity/makehuman/blob/3c701a8e52f09e69922e8b598d23be2d7dfc49e3/makehuman/data/3dobjs/base.obj", sha256: SOURCE_SHA256, license: "CC0-1.0" },
   };
   const triangleRegions: RegionId[] = [];
@@ -69,7 +54,6 @@ export function buildBody() {
       asset.weld.push(welded);
       asset.positions.push(...mesh.positions[welded].map(n => round(n, 5)));
       asset.normals.push(...normals[welded].map(n => round(n, 4)));
-      asset.garment.push(...garment[welded]);
       const px = chart.offset[0] + (u - chart.min[0]) * texelsPerMetre, py = chart.offset[1] + (v - chart.min[1]) * texelsPerMetre;
       asset.uvs.push(round(px / MAP_SIZE, 6), round(1 - py / MAP_SIZE, 6));
     }

@@ -40,7 +40,7 @@ Typical save path for B: `encodePaintSnapshot(handle.snapshot())` plus `reduceRe
 
 ## The body model (mannequin-v2)
 
-The editor and viewers render a realistic, neutral figure built from the CC0 MakeHuman base mesh: smooth skin with a modelled face, eyes, ears, separate fingers, and toes. Hair, clothing, and genital helpers are removed. `npm run body:generate` turns the pinned source (`scripts/body/source/`) into these files:
+The editor and viewers render a realistic, neutral figure built from the CC0 MakeHuman base mesh: smooth skin with a modelled face, eyes, ears, separate fingers, and toes. Hair, clothing, and genital helpers are removed, and the chest is smoothed so no shape has nipples. `npm run body:generate` turns the pinned source (`scripts/body/source/`) into these files:
 
 - `public/body/mannequin-v2.json`: render mesh, UV charts, welded topology, 45-region labels, landmarks, and camera presets.
 - The embedded region raster.
@@ -52,16 +52,16 @@ Both the editor and `BodyViewer` offer "Zoom to" close-ups (Face, Your left/righ
 
 ## Body shape and appearance
 
-The figure is neutral grey with a painted-on crop top and shorts, so it reads clearly as a mannequin and every pain color stands out. There is no skin-tone setting.
+The figure is plain neutral grey with no clothing, so it reads clearly as a mannequin and every pain color stands out. There is no skin-tone setting.
 
 "Adjust body shape" in the editor opens these optional sliders:
 
-- **Main:** sex, height, weight, muscle, and waist and belly.
+- **Main:** sex (locked to Female or Male, no in-between), height, weight, muscle, and waist and belly.
 - **Proportions:** shoulders, hips, and leg length.
 - **More options:** age (25–70).
-- **Reset body shape** returns to the default figure.
+- **Reset body shape** returns to the default body: male, with every other slider at average.
 
-The shape is a per-browser preference (`useBodyShapePreference`, `localStorage` key `pain-journal-body-shape`), shared live by the editor and viewers. History playback and date comparison use it for the visitor's own maps; Maya and the printed report always use the default figure.
+The shape is a per-browser preference (`useBodyShapePreference`, `localStorage` key `pain-journal-body-shape`), shared live by the editor and viewers. History playback, date comparison, and the printed report use it for the visitor's own maps. Maya, the synthetic patient, is always shown female (`FEMALE_BODY_SHAPE`). Older stored in-between sex values snap to the nearer end (0.5 goes to male).
 
 Shapes only move vertices. Triangles, UVs, region labels, and texel data never change, so a map looks the same on every shape and measures identically, and the body-map version stays `mannequin-v2`. `src/body/body-shape.ts` (pure) blends the CC0 morphs with MakeHuman's macro weights. `src/body/body-morph.ts` reshapes the welded painting surface in place, so geodesic painting follows the new shape, and recomputes seam-free normals, the close-up presets, and the framing. Shorter figures stay smaller in the frame; taller ones zoom out to fit.
 
