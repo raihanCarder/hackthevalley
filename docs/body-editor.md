@@ -67,6 +67,23 @@ Shapes only move vertices. Triangles, UVs, region labels, and texel data never c
 
 The 2 MB shape pack is fetched only when a non-default shape is used. `BodyViewer` takes an optional `shape` prop.
 
+## Decorative scene floor
+
+The editor, history playback, and comparison viewers share a quiet perspective floor grid (`src/body/scene-grid.ts`). Its 12 m plane sits at Y=-0.025 m, beneath the body; body morphing keeps the lowest vertex at Y=0. The grid stays anchored in world space as the existing camera moves. Its front face is visible from above only, so orbiting below the body does not draw a floor over it.
+
+The line color comes from the containing stage's existing `--accent` sage token against the charcoal `--stage`. Minor lines are spaced 0.2 m apart with 0.14 opacity; major lines use 1 m spacing and 0.22 opacity. Derivative antialiasing, attenuation of densely projected lines, grazing-angle attenuation, and a radial fade from 1.5 to 5.5 m keep the floor quiet and conceal its perimeter. These values control decoration, not a measurement scale.
+
+The scene owns and disposes the grid geometry/material alongside other resources. It uses the existing render loop, has no time uniform or animation, and is never included in body raycasts, paint maps, or regional measurements. The body depth-occludes its lines. The floor can naturally disappear edge-on or outside a close-up frame.
+
+Report captures temporarily hide the grid and restore its previous visibility in `finally`, including after encoding/rendering failures. Front/back images retain transparent backgrounds and static pain patterns. Browser regression coverage checks visible floor pixels before capture, transparent exterior pixels in both exports, unchanged scene pixels and map fingerprints afterward, and recovery from a forced encoding failure.
+
+Grid verification on 2026-10-18:
+
+- Visually reviewed editor, Maya history (empty and painted dates), and date comparison at 390, 768, and 1440 px. The sage floor stays subordinate to the figure and all four sensations at intensities 1 and 8. Reviewed named/oblique/below-ground views, zoom limits, hand/face/foot focus, and combined shape-slider extremes (including age). No floor intersections, visible perimeter, or dense horizon patterns were observed. Screenshots are local review artifacts in `test-results/body-grid-review/` (ignored by Git).
+- All 36 selected browser cases passed across the main run (33 passed) and targeted rerun (3 passed), using `npm run test:local-browser -- body-painting.spec.ts foundation.spec.ts body-shape.spec.ts journal-history.spec.ts history.spec.ts report-appointment.spec.ts`, then `npm run test:local-browser -- --last-failed`. The runner used disposable PostgreSQL schemas. The new transparency check was corrected to sample outside the hands; two stale assertions were updated for the existing generated help ID/error copy and profile switcher UI.
+- The existing animated-painting check passed its 30 FPS minimum under headless Chromium with software WebGL. Renderer lifecycle, touch painting, exact saved-map reload, history playback, and one-page A4/Letter printing checks passed. `npm run typecheck` and `npm run build` passed.
+- This verifies the local automated environment. The user has not confirmed the demo device, so performance on that device remains unverified; this change does not close the main journal's demo-device gate.
+
 ## Pain effects (task 2.4)
 
 A single `ShaderMaterial` samples one RGBA paint texture (R burning, G sharp, B aching, A tingling) and keeps the task 1 hemisphere + key + fill lighting for the body. Pain colors use gentler shading so their hue stays readable.

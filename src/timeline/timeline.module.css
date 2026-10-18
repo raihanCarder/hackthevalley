@@ -292,6 +292,7 @@
 .canvasStage {
   min-height: 440px;
   position: relative;
+  padding-bottom: 24px;
 }
 
 .stageBody {

@@ -95,7 +95,8 @@ test("switching to visitor profile displays clean empty state without leaking Ma
   // Switch to Visitor
   await chooseProfile(page, "You");
 
-  await expect(page.getByText("Your saved check-ins from PostgreSQL on this device.", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Switch profile, current profile You", exact: true })).toBeVisible();
+  await expect(page.getByText("Maya · Synthetic sample", { exact: true })).toHaveCount(0);
   await expect(page.getByText("You have not saved any check-ins in this range yet")).toBeVisible();
   await expect(page.getByRole("link", { name: "Go to 3D check-in to paint pain" })).toBeVisible();
   await expect(page.getByText("Playback disabled")).toBeVisible();

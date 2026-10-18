@@ -13,6 +13,7 @@ import { createPainMaterial, createPaintTexture, packPaintTexture, STATIC_TIME }
 import { PaintEngine, type SurfaceHit } from "./paint-engine";
 import { DEFAULT_BODY_SHAPE, isDefaultShape, type BodyShape } from "./body-shape";
 import { createMorpher } from "./body-morph";
+import { createSceneGrid } from "./scene-grid";
 
 type PointerHit = SurfaceHit & { normal: readonly [number, number, number] };
 import { reduceRegions } from "./regions";
@@ -91,6 +92,9 @@ export default function BodyScene({ handle, editable, mode, view, viewRequest, b
         canvas.setAttribute("role", "img");
         host.appendChild(canvas);
         const scene = new THREE.Scene();
+        const grid = createSceneGrid(getComputedStyle(host).getPropertyValue("--accent").trim());
+        scene.add(grid);
+        disposables.push(grid.geometry, grid.material);
         const camera = new THREE.PerspectiveCamera(FOV, 1, .01, 30);
         controls = new OrbitControls(camera, canvas);
         controls.target.set(0, 1, 0);
@@ -376,13 +380,13 @@ export default function BodyScene({ handle, editable, mode, view, viewRequest, b
           if (layers) packPaintTexture(captureTexture, layers, atlas!);
           else if (engine!.dirty !== uploaded) { packPaintTexture(texture!, engine!.peek(), atlas!); uploaded = engine!.dirty; }
           const uniforms = material!.uniforms;
-          const previous = { texture: uniforms.uPaint.value, motion: uniforms.uMotion.value, time: uniforms.uTime.value, ring: ring.visible, clear: renderer!.getClearColor(new THREE.Color()), alpha: renderer!.getClearAlpha() };
-          uniforms.uPaint.value = captureTexture; uniforms.uMotion.value = 0; uniforms.uTime.value = STATIC_TIME; ring.visible = false;
+          const previous = { texture: uniforms.uPaint.value, motion: uniforms.uMotion.value, time: uniforms.uTime.value, ring: ring.visible, grid: grid.visible, clear: renderer!.getClearColor(new THREE.Color()), alpha: renderer!.getClearAlpha() };
           const target = new THREE.WebGLRenderTarget(width * scale, height * scale, { colorSpace: THREE.SRGBColorSpace });
           const captureCamera = new THREE.PerspectiveCamera(30, width / height, .01, 30);
           const pixels = new Uint8Array(width * scale * height * scale * 4);
           const output: BodyCaptures = {};
           try {
+            uniforms.uPaint.value = captureTexture; uniforms.uMotion.value = 0; uniforms.uTime.value = STATIC_TIME; ring.visible = false; grid.visible = false;
             for (const side of views as CaptureView[]) {
               captureCamera.position.set(0, .98 * frame, (side === "front" ? 4.1 : -4.1) * frame);
               captureCamera.lookAt(0, .98 * frame, 0);
@@ -396,7 +400,7 @@ export default function BodyScene({ handle, editable, mode, view, viewRequest, b
           } finally {
             renderer!.setRenderTarget(null);
             renderer!.setClearColor(previous.clear, previous.alpha);
-            uniforms.uPaint.value = previous.texture; uniforms.uMotion.value = previous.motion; uniforms.uTime.value = previous.time; ring.visible = previous.ring;
+            uniforms.uPaint.value = previous.texture; uniforms.uMotion.value = previous.motion; uniforms.uTime.value = previous.time; ring.visible = previous.ring; grid.visible = previous.grid;
             target.dispose();
             if (layers) captureTexture.dispose();
             requestRender();
