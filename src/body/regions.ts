@@ -1,5 +1,6 @@
 import { PAIN_TYPES, REGION_IDS, type RegionalObservation } from "../domain/contracts";
-import { getBodyAtlas, type BodyAtlas } from "./atlas";
+import type { RegionRaster } from "./atlas";
+import { getRegionRaster } from "./region-raster";
 import { assertLayers, PRESENCE_THRESHOLD, TEXEL_COUNT, type PaintLayers } from "./layers";
 
 const round = (value: number, places: number) => Math.round(value * 10 ** places) / 10 ** places;
@@ -10,7 +11,7 @@ const round = (value: number, places: number) => Math.round(value * 10 ** places
  * threshold. Only present region/type pairs (coverage > 0) are returned, so an empty map yields an empty list.
  * Intensities are 0–10 rounded to 4 places, coverage 0–1 rounded to 6 places.
  */
-export function reduceRegions(layers: PaintLayers, atlas: BodyAtlas = getBodyAtlas()): RegionalObservation[] {
+export function reduceRegions(layers: PaintLayers, atlas: RegionRaster = getRegionRaster()): RegionalObservation[] {
   assertLayers(layers);
   const regions = REGION_IDS.length;
   const sum = new Float64Array(regions), peak = new Uint8Array(regions), covered = new Uint32Array(regions);

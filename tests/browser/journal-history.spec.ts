@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { landmark, project } from "./body-landmarks";
 
 const storage = process.env.TEST_JOURNAL_STORAGE === "postgresql" ? "postgresql" : "indexeddb";
 async function ready(page: Page) {
@@ -10,18 +11,17 @@ async function paintCalf(page: Page) {
   const canvas = page.locator("canvas");
   await canvas.scrollIntoViewIfNeeded();
   const box = (await canvas.boundingBox())!;
-  const t = Math.tan(Math.PI / 9), depth = 2.9 - .08;
-  const x = box.x + box.width / 2 + .135 * box.height / (2 * depth * t);
-  const y = (modelY: number) => box.y + box.height / 2 - (modelY - 1) * box.height / (2 * depth * t);
+  // Stroke down the front of the patient's left calf, between two surface landmarks of the body asset.
+  const [x0, y0] = project(box, landmark("left-calf-upper")), [x1, y1] = project(box, landmark("left-calf-lower"));
   if (await page.evaluate(() => navigator.maxTouchPoints > 0)) {
     const client = await page.context().newCDPSession(page);
-    const point = (modelY: number) => [{ x, y: y(modelY), id: 1 }];
-    await client.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: point(.42) });
-    for (let i = 1; i <= 10; i++) await client.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: point(.42 - .17 * i / 10) });
+    const point = (i: number) => [{ x: x0 + (x1 - x0) * i / 10, y: y0 + (y1 - y0) * i / 10, id: 1 }];
+    await client.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: point(0) });
+    for (let i = 1; i <= 10; i++) await client.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: point(i) });
     await client.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
     await client.detach();
   } else {
-    await page.mouse.move(x, y(.42)); await page.mouse.down(); await page.mouse.move(x, y(.25), { steps: 10 }); await page.mouse.up();
+    await page.mouse.move(x0, y0); await page.mouse.down(); await page.mouse.move(x1, y1, { steps: 10 }); await page.mouse.up();
   }
   await expect(canvas).toHaveAttribute("data-observations", /left-calf:aching/);
 }

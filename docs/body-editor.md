@@ -14,9 +14,9 @@ No React, DOM, canvas, WebGL, or Three.js imports; a test walks the module graph
 | `encodePaintSnapshot(layers)` | Async; returns the contract's `PaintSnapshot` (base64 PNG per layer) |
 | `decodePaintSnapshot(snapshot)` | Async; validates and decodes, rejects incompatible versions |
 | `validateEntryPayload(entry, { byteLength })` | Async; size/note/version/structure/map validation, returns `{ entry, layers, submittedObservationsMatched }` with recomputed observations |
-| `reduceRegions(layers)` | The single shared region reducer |
+| `reduceRegions(layers)`, `getRegionRaster()` | The single shared region reducer and the embedded region raster it uses (synchronous everywhere) |
 | `MapValidationError` (`code`), `MAX_ENTRY_PAYLOAD_BYTES`, `MAX_NOTE_CHARACTERS`, `PRESENCE_THRESHOLD` | Limits and error handling |
-| `PaintEngine`, `getBodyAtlas` | CPU painting for fixture generation (e.g. Maya, task 4.1): feed it `SurfaceHit`s (point, normal, island) to produce maps through the same pipeline as the editor |
+| `PaintEngine`, `buildBodyAtlas`, `surfaceHitNear` | CPU painting for fixture generation (e.g. Maya, task 4.1): feed it `SurfaceHit`s (`{ point, triangle }`) to produce maps through the same geodesic pipeline as the editor. In Node scripts and tests, `loadBodyAtlas()` from `@/body/node-atlas` reads the checked-in asset. `asset.landmarks` names surface points such as `left-calf-middle`, `lower-back`, or `left-index-tip` |
 
 ### Browser components (client only)
 
@@ -37,6 +37,18 @@ handle.subscribe(change => …);   // returns unsubscribe
 ```
 
 Typical save path for B: `encodePaintSnapshot(handle.snapshot())` plus `reduceRegions` (or let the server recompute through `validateEntryPayload`).
+
+## The body model (mannequin-v2)
+
+The editor and viewers render a realistic, neutral figure built from the CC0 MakeHuman base mesh: smooth skin with a modelled face, eyes, ears, separate fingers, and toes. Hair, clothing, and genital helpers are removed. `npm run body:generate` turns the pinned source (`scripts/body/source/`) into these files:
+
+- `public/body/mannequin-v2.json`: render mesh, UV charts, welded topology, 45-region labels, landmarks, and camera presets.
+- The embedded region raster.
+- The traced 2D diagram.
+
+Provenance and licensing are in `public/body/PROVENANCE.md` and `public/body/LICENSE.txt`.
+
+Both the editor and `BodyViewer` offer "Zoom to" close-ups (Face, Your left/right hand, Your left/right foot) next to the named views. The handle exposes the same presets as `focus(target)`. Small parts are painted in close-up; the brush and the regions list work the same at any zoom.
 
 ## Pain effects (task 2.4)
 
@@ -67,10 +79,11 @@ All targets are at least 44 px with a visible 3 px focus outline.
 The current acceptance machine reports **MacBook Air (MacBookAir10,1), Apple M1, 8 GB RAM, macOS 26.5.2, Node 22.16.0**. The previous M5 Pro/64 GB device claim is superseded by this direct hardware check. **The user has not confirmed this is the demo laptop, so task 2.8 remains open.**
 
 - **Frame rate:** the Chromium browser check measures rendered FPS while painting with animated effects and asserts at least 30 FPS. The final observed value and browser configuration are recorded in [integration verification](integration-verification.md). This is a headless software-WebGL check, not a claim about another demo device or a manually measured Metal renderer.
+- **mannequin-v2 check** (2026-10-17, development machine, not necessarily the demo laptop): painting continuously for 4 s with animated effects on the 27k-triangle realistic body, 1440x900 at DPR 2, Chromium with the Metal GPU (`ANGLE Metal Renderer: Apple M5 Pro`): mean 60 FPS, p95 frame 16.7 ms (vsync-capped). CPU costs in Node: atlas build about 44 ms per mount, one geodesic stamp 0.01–0.04 ms for 2–8 cm brushes, region reduction about 1 ms per committed stroke.
 - **Cleanup:** unmount cancels animation frames, removes listeners, and disposes scene resources. The remount check navigates three times; the editor handle leaves the live set, history has exactly one distinct read-only scene, and returning to check-in has exactly one working editor. Saved maps continue to paint after remount.
 - **Commands:** `npm test`, `npm run typecheck`, `npm run build`, and `npm run test:browser`. Final aggregate counts are in the integration record.
 
-Limits: the atlas is 512 px, about 5–10 mm per texel, so the smallest brush (2 cm radius) is the finest mark. Painting needs WebGL. Keyboard users can rotate and select every control, but painting itself requires a pointer. Measurements are map coverage, not anatomy.
+Limits: the atlas is 512 px, about 4.5 mm per texel on `mannequin-v2`, so the smallest brush (2 cm radius) is the finest mark; use the hand, foot, and face close-ups to mark individual fingers, toes, and facial features. Painting needs WebGL. Keyboard users can rotate and select every control, but painting itself requires a pointer. Measurements are map coverage, not anatomy.
 
 ## Consumer integration
 

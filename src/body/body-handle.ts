@@ -1,6 +1,7 @@
 import type { CameraView, RegionalObservation } from "../domain/contracts";
 import { cloneLayers, createEmptyLayers, type PaintLayers } from "./layers";
 import { decodePaintSnapshot } from "./map-codec";
+import type { FocusTarget } from "./mannequin";
 
 export type CaptureView = "front" | "back";
 export interface CaptureOptions {
@@ -39,6 +40,8 @@ export interface BodyHandle {
   /** Reverts the most recent completed stroke; false when there is nothing to undo or the body is read-only. */
   undo(): boolean;
   setView(view: CameraView): void;
+  /** Moves the camera close to a small part: the face, either hand, or either foot. */
+  focus(target: FocusTarget): void;
   /** Renders fixed front/back PNG data URLs with static (reduced-motion) pain patterns. */
   capture(options?: CaptureOptions): Promise<BodyCaptures>;
   /** Subscribes to map changes; returns an unsubscribe function. */
@@ -51,6 +54,7 @@ export interface SceneController {
   load(layers: PaintLayers | null): void;
   undo(): boolean;
   setView(view: CameraView): void;
+  focus(target: FocusTarget): void;
   capture(options: CaptureOptions): Promise<BodyCaptures>;
 }
 
@@ -100,6 +104,7 @@ export class DeferredBodyHandle implements BodyHandle {
   }
   undo() { return this.target?.undo() ?? false; }
   setView(view: CameraView) { this.target?.setView(view); }
+  focus(target: FocusTarget) { this.target?.focus(target); }
   async capture(options: CaptureOptions = {}) {
     await this.ready;
     return this.target!.capture(options);

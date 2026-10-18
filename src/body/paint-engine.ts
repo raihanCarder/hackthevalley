@@ -4,31 +4,32 @@ import { assertLayers, cloneLayers, createEmptyLayers, layersAreEmpty, MAX_UNDO_
 
 export type BrushTool = "brush" | "eraser";
 export interface SurfaceHit {
-  /** Model-space surface point and outward face normal. */
+  /** Model-space surface point. */
   point: readonly [number, number, number];
-  normal: readonly [number, number, number];
-  island: number;
+  /** Render triangle that contains the point (from a raycast or a landmark). */
+  triangle: number;
 }
 export interface StrokeOptions {
   layer: PainType;
   tool: BrushTool;
   /** Target byte (0–255) for the brush centre; ignored by the eraser. */
   intensity: number;
-  /** World-space radius in metres. */
+  /** Surface radius in metres. */
   radius: number;
 }
 interface Patch { layer: PainType; texels: Uint32Array; before: Uint8Array }
 
-/** Strokes jumping farther than this between samples are not joined (e.g. a lost pointer re-entering elsewhere). */
+/** Samples farther apart than this are never joined into one continuous mark. */
 const MAX_JOIN_DISTANCE = .25;
-/** Texels whose normal faces away from the brush more than this are on another side of the surface. */
-const MIN_NORMAL_ALIGNMENT = .2;
+/** Samples are joined only when the surface path is at most this much longer than the straight line between them. */
+const MAX_DETOUR = 1.6;
 /** The eraser reaches a little farther with a harder edge, so retracing a mark removes its soft rim too. */
-const ERASER_REACH = 1.2;
+const ERASER_REACH = 1.3;
 
 /**
- * CPU paint maps are the source of truth (design decision 3). Stamps use maximum blending with a soft radial falloff,
- * are restricted to the hit island and its documented seam neighbours, and ignore surfaces facing away from the brush.
+ * CPU paint maps are the source of truth (design decision 3). A stamp covers texels whose geodesic distance on the
+ * welded body surface is within the radius, so paint follows the skin across UV seams and never jumps across a gap
+ * (finger to finger, front to back of a hand, ear to scalp). Maximum blending, soft falloff, bounded undo.
  */
 export class PaintEngine {
   readonly atlas: BodyAtlas;
@@ -37,12 +38,21 @@ export class PaintEngine {
   private stroke: { options: StrokeOptions; touched: number[]; before: number[]; last: SurfaceHit | null } | null = null;
   private touchedMark = new Uint8Array(TEXEL_COUNT);
   private revisionValue = 0;
-  /** Bumps on every texel change, including mid-stroke, so the renderer knows when to upload. */
   private dirtyValue = 0;
+  // Geodesic workspace, reused between stamps.
+  private distance: Float32Array;
+  private previous: Int32Array;
+  private settled: Uint8Array;
+  private visited: number[] = [];
+  private triangleMark: Uint8Array;
 
   constructor(atlas: BodyAtlas, initial?: PaintLayers | null) {
     this.atlas = atlas;
     this.layers = createEmptyLayers();
+    this.distance = new Float32Array(atlas.vertexCount).fill(Infinity);
+    this.previous = new Int32Array(atlas.vertexCount).fill(-1);
+    this.settled = new Uint8Array(atlas.vertexCount);
+    this.triangleMark = new Uint8Array(atlas.triangleCount);
     if (initial) this.load(initial);
   }
 
@@ -78,21 +88,23 @@ export class PaintEngine {
     if (intensity !== undefined) stroke.options.intensity = Math.max(0, Math.min(255, Math.round(intensity)));
     if (!hit) { stroke.last = null; return; }
     const last = stroke.last;
-    const distance = last ? Math.hypot(hit.point[0] - last.point[0], hit.point[1] - last.point[1], hit.point[2] - last.point[2]) : 0;
-    if (last && distance > 0 && distance <= MAX_JOIN_DISTANCE && this.related(last.island, hit.island)) {
-      // Interpolate along the chord so a fast drag leaves no gaps; only between related surfaces.
-      const step = Math.max(stroke.options.radius * .3, .003);
-      const steps = Math.ceil(distance / step);
-      const islands = new Set([last.island, hit.island, ...this.atlas.seamNeighbors[last.island], ...this.atlas.seamNeighbors[hit.island]]);
-      for (let i = 1; i <= steps; i++) {
-        const t = i / steps;
-        const point = [0, 1, 2].map(axis => last.point[axis] + (hit.point[axis] - last.point[axis]) * t) as [number, number, number];
-        const normal = [0, 1, 2].map(axis => last.normal[axis] + (hit.normal[axis] - last.normal[axis]) * t) as [number, number, number];
-        this.stamp(point, normal, islands);
+    const straight = last ? Math.hypot(hit.point[0] - last.point[0], hit.point[1] - last.point[1], hit.point[2] - last.point[2]) : 0;
+    const radius = this.effectiveRadius();
+    if (last && straight > radius * .3 && straight <= MAX_JOIN_DISTANCE) {
+      // Join along the shortest surface path, if the surface connects the samples without a long detour.
+      const path = this.surfacePath(last, hit, straight * MAX_DETOUR + radius * .5);
+      if (path) {
+        const step = Math.max(radius * .3, .003);
+        let previous = last.point as readonly number[];
+        for (const vertex of path) {
+          const point = [this.atlas.vertices[vertex * 3], this.atlas.vertices[vertex * 3 + 1], this.atlas.vertices[vertex * 3 + 2]] as const;
+          if (Math.hypot(point[0] - previous[0], point[1] - previous[1], point[2] - previous[2]) < step) continue;
+          this.stamp({ point, triangle: this.atlas.vertexTriangles[this.atlas.vertexTriangleStart[vertex]] });
+          previous = point;
+        }
       }
-    } else {
-      this.stamp(hit.point, hit.normal, new Set([hit.island, ...this.atlas.seamNeighbors[hit.island]]));
     }
+    this.stamp(hit);
     stroke.last = hit;
   }
 
@@ -133,35 +145,118 @@ export class PaintEngine {
     return true;
   }
 
-  private related(a: number, b: number) {
-    return a === b || this.atlas.seamNeighbors[a].includes(b);
+  private effectiveRadius() {
+    const options = this.stroke!.options;
+    return options.tool === "eraser" ? options.radius * ERASER_REACH : options.radius;
   }
 
-  private stamp(point: readonly number[], normalIn: readonly number[], islands: Set<number>) {
+  /**
+   * Bounded Dijkstra from a surface point over welded edges. Leaves distances in `this.distance` for visited vertices
+   * (listed in `this.visited`); call `resetGeodesic` afterwards. Stops early when `goal` (a vertex set) is settled.
+   */
+  private geodesic(hit: SurfaceHit, limit: number, goal?: Set<number>): number {
+    const { atlas, distance, previous, settled, visited } = this;
+    const heap: number[] = [];
+    const push = (vertex: number) => {
+      heap.push(vertex);
+      for (let i = heap.length - 1; i > 0;) { const parent = (i - 1) >> 1; if (distance[heap[parent]] <= distance[heap[i]]) break; [heap[parent], heap[i]] = [heap[i], heap[parent]]; i = parent; }
+    };
+    const pop = () => {
+      const top = heap[0], end = heap.pop()!;
+      if (heap.length) {
+        heap[0] = end;
+        for (let i = 0; ;) {
+          const l = i * 2 + 1, r = l + 1;
+          let m = i;
+          if (l < heap.length && distance[heap[l]] < distance[heap[m]]) m = l;
+          if (r < heap.length && distance[heap[r]] < distance[heap[m]]) m = r;
+          if (m === i) break;
+          [heap[m], heap[i]] = [heap[i], heap[m]]; i = m;
+        }
+      }
+      return top;
+    };
+    for (let k = 0; k < 3; k++) {
+      const v = atlas.triangles[hit.triangle * 3 + k];
+      const d = Math.hypot(atlas.vertices[v * 3] - hit.point[0], atlas.vertices[v * 3 + 1] - hit.point[1], atlas.vertices[v * 3 + 2] - hit.point[2]);
+      if (distance[v] === Infinity) visited.push(v);
+      if (d < distance[v]) { distance[v] = d; previous[v] = -1; push(v); }
+    }
+    while (heap.length) {
+      const v = pop();
+      if (settled[v]) continue;
+      settled[v] = 1;
+      if (goal?.has(v)) return v;
+      if (distance[v] > limit) break;
+      for (let i = atlas.neighborStart[v]; i < atlas.neighborStart[v + 1]; i++) {
+        const n = atlas.neighbors[i], d = distance[v] + atlas.edgeLength[i];
+        if (d >= distance[n] || d > limit + atlas.edgeLength[i]) continue;
+        if (distance[n] === Infinity) visited.push(n);
+        distance[n] = d; previous[n] = v; push(n);
+      }
+    }
+    return -1;
+  }
+
+  private resetGeodesic() {
+    for (const v of this.visited) { this.distance[v] = Infinity; this.previous[v] = -1; this.settled[v] = 0; }
+    this.visited.length = 0;
+  }
+
+  /** Welded vertices along the surface path from `from` to `to`, or null when the surface detour is too long. */
+  private surfacePath(from: SurfaceHit, to: SurfaceHit, limit: number): number[] | null {
+    const goal = new Set([0, 1, 2].map(k => this.atlas.triangles[to.triangle * 3 + k]));
+    const reached = this.geodesic(from, limit, goal);
+    let path: number[] | null = null;
+    if (reached >= 0 && this.distance[reached] <= limit) {
+      path = [];
+      for (let v = reached; v >= 0; v = this.previous[v]) path.push(v);
+      path.reverse();
+    }
+    this.resetGeodesic();
+    return path;
+  }
+
+  private stamp(hit: SurfaceHit) {
     const stroke = this.stroke!;
     const { tool, intensity } = stroke.options;
     const erasing = tool === "eraser";
-    const radius = erasing ? stroke.options.radius * ERASER_REACH : stroke.options.radius;
-    const layer = this.layers[stroke.options.layer];
-    const { position, normal, islandTexels, islandBox } = this.atlas;
-    const length = Math.hypot(normalIn[0], normalIn[1], normalIn[2]) || 1;
-    const nx = normalIn[0] / length, ny = normalIn[1] / length, nz = normalIn[2] / length;
-    const radius2 = radius * radius;
+    const radius = this.effectiveRadius();
     const inner = radius * (erasing ? .7 : .45);
+    const layer = this.layers[stroke.options.layer];
+    const { atlas, distance, triangleMark } = this;
+    this.geodesic(hit, radius);
+    const triangles: number[] = [];
+    for (const v of this.visited) {
+      if (distance[v] >= radius) continue;
+      for (let i = atlas.vertexTriangleStart[v]; i < atlas.vertexTriangleStart[v + 1]; i++) {
+        const t = atlas.vertexTriangles[i];
+        if (!triangleMark[t]) { triangleMark[t] = 1; triangles.push(t); }
+      }
+    }
+    if (!triangleMark[hit.triangle]) { triangleMark[hit.triangle] = 1; triangles.push(hit.triangle); }
     let changed = false;
-    for (const island of islands) {
-      const box = islandBox[island];
-      if (point[0] < box[0] - radius || point[1] < box[1] - radius || point[2] < box[2] - radius ||
-        point[0] > box[3] + radius || point[1] > box[4] + radius || point[2] > box[5] + radius) continue;
-      for (const texel of islandTexels[island]) {
-        const dx = position[texel * 3] - point[0], dy = position[texel * 3 + 1] - point[1], dz = position[texel * 3 + 2] - point[2];
-        const distance2 = dx * dx + dy * dy + dz * dz;
-        if (distance2 >= radius2) continue;
-        if (normal[texel * 3] * nx + normal[texel * 3 + 1] * ny + normal[texel * 3 + 2] * nz < MIN_NORMAL_ALIGNMENT) continue;
-        const distance = Math.sqrt(distance2);
+    for (const t of triangles) {
+      triangleMark[t] = 0;
+      const corners = [atlas.triangles[t * 3], atlas.triangles[t * 3 + 1], atlas.triangles[t * 3 + 2]];
+      const cornerDistance = corners.map(v => Math.min(distance[v], radius));
+      for (let i = atlas.triangleTexelStart[t]; i < atlas.triangleTexelStart[t + 1]; i++) {
+        const texel = atlas.triangleTexels[i];
+        const w0 = atlas.bary[texel * 3], w1 = atlas.bary[texel * 3 + 1], w2 = atlas.bary[texel * 3 + 2];
+        let d: number;
+        if (t === hit.triangle) {
+          // Inside the hit triangle the straight-line distance is exact.
+          const px = atlas.vertices[corners[0] * 3] * w0 + atlas.vertices[corners[1] * 3] * w1 + atlas.vertices[corners[2] * 3] * w2;
+          const py = atlas.vertices[corners[0] * 3 + 1] * w0 + atlas.vertices[corners[1] * 3 + 1] * w1 + atlas.vertices[corners[2] * 3 + 1] * w2;
+          const pz = atlas.vertices[corners[0] * 3 + 2] * w0 + atlas.vertices[corners[1] * 3 + 2] * w1 + atlas.vertices[corners[2] * 3 + 2] * w2;
+          d = Math.hypot(px - hit.point[0], py - hit.point[1], pz - hit.point[2]);
+        } else {
+          d = cornerDistance[0] * w0 + cornerDistance[1] * w1 + cornerDistance[2] * w2;
+        }
+        if (d >= radius) continue;
         // Soft edge: full strength inside the inner radius, smooth falloff to zero at the rim.
-        const t = distance <= inner ? 0 : (distance - inner) / (radius - inner);
-        const falloff = 1 - t * t * (3 - 2 * t);
+        const s = d <= inner ? 0 : (d - inner) / (radius - inner);
+        const falloff = 1 - s * s * (3 - 2 * s);
         const current = layer[texel];
         let next: number;
         if (!erasing) next = Math.max(current, Math.round(intensity * falloff));
@@ -175,6 +270,7 @@ export class PaintEngine {
         changed = true;
       }
     }
+    this.resetGeodesic();
     if (changed) this.dirtyValue++;
   }
 }

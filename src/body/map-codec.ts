@@ -1,5 +1,5 @@
 import { BODY_MAP_VERSION, MAP_SIZE, PAIN_TYPES, parseDailyEntry, SCHEMA_VERSION, type DailyEntry, type PaintSnapshot, type RegionalObservation } from "../domain/contracts";
-import type { BodyAtlas } from "./atlas";
+import type { RegionRaster } from "./atlas";
 import { assertLayers, createEmptyLayers, type PaintLayers } from "./layers";
 import { base64ToBytes, bytesToBase64, decodeGrayPng, encodeGrayPng, MapValidationError } from "./png";
 import { reduceRegions } from "./regions";
@@ -53,7 +53,7 @@ function codePoints(text: string) { let count = 0; for (const _ of text) count++
  * Observations are recomputed with the shared reducer rather than trusting client-provided values.
  * `byteLength` should be the raw request size when available; otherwise the JSON size is measured.
  */
-export async function validateEntryPayload(value: unknown, options: { byteLength?: number; atlas?: BodyAtlas } = {}): Promise<ValidatedEntry> {
+export async function validateEntryPayload(value: unknown, options: { byteLength?: number; atlas?: RegionRaster } = {}): Promise<ValidatedEntry> {
   let size = options.byteLength;
   if (size === undefined) {
     try { size = new TextEncoder().encode(JSON.stringify(value)).length; } catch { throw new MapValidationError("format", "Check-in payload is not serializable."); }

@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { landmark } from "./body-landmarks";
 
 // Named views stand 2.9 m from the orbit target (0, 1, 0) with a 40° vertical field of view.
 async function paintFront(page: Page, from: [number, number, number], to: [number, number, number]) {
@@ -25,7 +26,7 @@ test("a painted check-in saves to the browser, restores exactly after reload, an
   await expect(page.getByText("No check-in recorded", { exact: true })).toBeVisible();
 
   await page.locator("label", { hasText: "Burning" }).click();
-  await paintFront(page, [.12, .82, .1], [.12, .62, .09]);
+  await paintFront(page, landmark("left-thigh-upper"), landmark("left-thigh-lower"));
   await expect.poll(() => observations(page)).toContain("left-thigh:burning");
   const painted = await observations(page);
   await expect(page.getByText("Unsaved draft", { exact: true })).toBeVisible();

@@ -1,23 +1,40 @@
 import { writeFileSync } from "node:fs";
 import { BODY_MAP_VERSION, SCHEMA_VERSION, parseDailyEntry, type DailyEntry, type LocalDate, type PainType, type RegionId } from "../src/domain/contracts";
-import { getBodyAtlas, PaintEngine, intensityToByte, encodePaintSnapshot, reduceRegions } from "../src/body/map-utils";
+import { PaintEngine, intensityToByte, encodePaintSnapshot, reduceRegions, type SurfaceHit } from "../src/body/map-utils";
+import { loadBodyAtlas } from "../src/body/node-atlas";
 import { listCalendarDates } from "../src/timeline/analysis";
 
-const atlas = getBodyAtlas();
-/** Choose a real surface sample; PaintEngine owns stamping, seam gating and the UV row convention. */
-function paint(engine: PaintEngine, region: RegionId, side: "front" | "back", layer: PainType, intensity: number, radius: number) {
-  const island = atlas.islands.find(item => item.regionId === region && item.side === side)!;
-  const box = atlas.islandBox[island.id];
-  const centre = [0, 1, 2].map(axis => (box[axis] + box[axis + 3]) / 2);
-  let nearest = atlas.islandTexels[island.id][0], distance = Infinity;
-  for (const texel of atlas.islandTexels[island.id]) {
-    const d = centre.reduce((sum, value, axis) => sum + (atlas.position[texel * 3 + axis] - value) ** 2, 0);
-    if (d < distance) { nearest = texel; distance = d; }
+const atlas = loadBodyAtlas();
+const FACING = { front: [0, 0, 1], back: [0, 0, -1] } as const;
+
+/** The centre of a region's surface facing one way: the region vertex nearest the centroid of its facing vertices. */
+function regionCentre(region: RegionId, side: "front" | "back"): SurfaceHit {
+  const { asset } = atlas;
+  const facing = FACING[side];
+  const candidates: number[] = [];
+  for (const chart of asset.charts) if (chart.regionId === region) {
+    for (let v = chart.vertexStart; v < chart.vertexStart + chart.vertexCount; v++) {
+      if (asset.normals[v * 3] * facing[0] + asset.normals[v * 3 + 1] * facing[1] + asset.normals[v * 3 + 2] * facing[2] > .5) candidates.push(v);
+    }
   }
+  const centroid = [0, 1, 2].map(axis => candidates.reduce((sum, v) => sum + asset.positions[v * 3 + axis], 0) / candidates.length);
+  let best = candidates[0], distance = Infinity;
+  for (const v of candidates) {
+    const d = centroid.reduce((sum, value, axis) => sum + (asset.positions[v * 3 + axis] - value) ** 2, 0);
+    if (d < distance) { distance = d; best = v; }
+  }
+  const chart = asset.charts.find(item => best >= item.vertexStart && best < item.vertexStart + item.vertexCount)!;
+  let triangle = chart.triangleStart;
+  for (let t = chart.triangleStart; t < chart.triangleStart + chart.triangleCount; t++) {
+    if ([0, 1, 2].some(k => asset.indices[t * 3 + k] === best)) { triangle = t; break; }
+  }
+  return { point: [asset.positions[best * 3], asset.positions[best * 3 + 1], asset.positions[best * 3 + 2]], triangle };
+}
+
+/** One stamp at a region centre; PaintEngine owns geodesic spreading and the UV row convention. */
+function paint(engine: PaintEngine, region: RegionId, side: "front" | "back", layer: PainType, intensity: number, radius: number) {
   engine.beginStroke({ layer, tool: "brush", intensity: intensityToByte(intensity), radius });
-  engine.strokeTo({ island: island.id,
-    point: Array.from(atlas.position.slice(nearest * 3, nearest * 3 + 3)) as [number, number, number],
-    normal: Array.from(atlas.normal.slice(nearest * 3, nearest * 3 + 3)) as [number, number, number] });
+  engine.strokeTo(regionCentre(region, side));
   engine.endStroke();
 }
 
@@ -79,15 +96,16 @@ export async function generateMayaEntries(): Promise<DailyEntry[]> {
     const engine = new PaintEngine(atlas);
     if (i >= 4) {
       const day = i - 4;
-      paint(engine, "back-lower-torso", "back", "aching", NOTE_ACHING_RATINGS[localDate] ?? 4.2 + 1.2 * Math.sin(day * .45), .19 + .02 * Math.cos(day * .3));
-      if (i >= 27) paint(engine, "left-thigh", "front", "burning", 4.5 + Math.min(2, (i - 27) * .15) + .4 * Math.sin(i - 27), .10 + Math.min(.055, (i - 27) * .004));
-      if (i >= 34) paint(engine, "left-calf", "front", "burning", 4.2 + Math.min(1.8, (i - 34) * .2), .065 + Math.min(.045, (i - 34) * .006));
+      // Surface radii in metres on the mannequin-v2 body (geodesic brush), growing as the leg burning extends.
+      paint(engine, "back-lower-torso", "back", "aching", NOTE_ACHING_RATINGS[localDate] ?? 4.2 + 1.2 * Math.sin(day * .45), .095 + .01 * Math.cos(day * .3));
+      if (i >= 27) paint(engine, "left-thigh", "front", "burning", 4.5 + Math.min(2, (i - 27) * .15) + .4 * Math.sin(i - 27), .06 + Math.min(.045, (i - 27) * .0035));
+      if (i >= 34) paint(engine, "left-calf", "front", "burning", 4.2 + Math.min(1.8, (i - 34) * .2), .04 + Math.min(.035, (i - 34) * .005));
     }
     const layers = engine.snapshot();
     entries.push(parseDailyEntry({ id: `maya-${localDate}`, profileId: "maya-synthetic", localDate,
       timeZone: "America/Toronto", updatedAt: `${localDate}T20:30:00.000Z`, schemaVersion: SCHEMA_VERSION,
       bodyMapVersion: BODY_MAP_VERSION, maps: await encodePaintSnapshot(layers),
-      observations: reduceRegions(layers, atlas), note: MAYA_NOTES[localDate] }));
+      observations: reduceRegions(layers), note: MAYA_NOTES[localDate] }));
   }
   return entries;
 }

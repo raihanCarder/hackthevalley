@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { randomBytes } from "node:crypto";
 import { Pool } from "pg";
 import { PostgresJournal } from "../../src/journal/postgres";
@@ -17,7 +17,10 @@ test("real PostgreSQL daily upserts, isolation, transaction rollback, and concur
   const pool = new Pool({ connectionString: url, options: `-c search_path=${schema}`, connectionTimeoutMillis: 3000 });
   try {
     await admin.query(`CREATE SCHEMA ${schema}`);
-    await pool.query(await readFile(new URL("../../db/migrations/001_journal.sql", import.meta.url), "utf8"));
+    // Apply every migration in order, as db/migrate.ts does.
+    for (const name of (await readdir(new URL("../../db/migrations/", import.meta.url))).filter(file => file.endsWith(".sql")).sort()) {
+      await pool.query(await readFile(new URL(`../../db/migrations/${name}`, import.meta.url), "utf8"));
+    }
     await pool.query("INSERT INTO visitor_sessions (token_hash, profile_id, expires_at) VALUES ($1, 'visitor-one', now() + interval '1 day'), ($2, 'visitor-two', now() + interval '1 day')", [randomBytes(32), randomBytes(32)]);
     const one = new PostgresJournal(pool, "visitor-one", mapServices);
     const two = new PostgresJournal(pool, "visitor-two", mapServices);

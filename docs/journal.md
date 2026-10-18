@@ -62,7 +62,7 @@ This command requires a real PostgreSQL database and creates/removes only a gene
 | `TEST_DATABASE_URL` | Opt-in local PostgreSQL test database. |
 | `APP_ORIGIN` | Optional canonical origin behind a proxy; otherwise require the browser-addressed origin (request protocol + Host) for mutations. |
 | `GEMINI_API_KEY` | Server-only, independent from storage; set GEMINI_MODEL as well. |
-| Versions | Schema `1`, body map `mannequin-v1`, four 512 × 512 `png-base64` layers. Unsupported records show restoration errors. |
+| Versions | Schema `1`, body map `mannequin-v2`, four 512 × 512 `png-base64` layers. Unsupported records (including `mannequin-v1` check-ins saved before the realistic body) show restoration errors and are never reinterpreted. `db/migrations/002_mannequin_v2.sql` allows the 45 v2 regions; `npm run db:migrate` applies every migration in order. |
 | Limits | Complete UTF-8 JSON check-in ≤6 MiB; note ≤4,000 JavaScript characters. Streaming requests are bounded before JSON parsing; A validates image content. |
 | Server identity | 256-bit opaque random token, SHA-256 hash in PostgreSQL, seven-day server expiry. Cookie is HttpOnly, SameSite Strict, path `/`, Secure in production. |
 | Browser identity | Persistent local UUID in localStorage; entries in IndexedDB. Tabs in the same browser profile share this local identity. This is separate from server session isolation. |

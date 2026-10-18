@@ -2,7 +2,8 @@
  * Server-safe body-map utilities for journal (B), timeline (C), and report (D) code.
  * Runs in Node Route Handlers and the browser: no React, DOM, canvas, WebGL, or Three.js imports.
  */
-export { buildBodyAtlas, getBodyAtlas, regionIdRaster, type BodyAtlas } from "./atlas";
+export { buildBodyAtlas, regionIdRaster, surfaceHitNear, texelPosition, type BodyAtlas, type RegionRaster } from "./atlas";
+export { getRegionRaster } from "./region-raster";
 export {
   assertLayers, byteToIntensity, cloneLayers, createEmptyLayers, intensityToByte, layersAreEmpty, uvToTexel,
   MAX_UNDO_STROKES, PRESENCE_THRESHOLD, TEXEL_COUNT, type PaintLayers,

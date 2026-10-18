@@ -1,5 +1,6 @@
 import { BODY_MAP_VERSION, MAP_SIZE, SCHEMA_VERSION, type DailyEntry, type LocalDate, type RegionalObservation, type RegionId } from "../../src/domain/contracts";
-import { createEmptyLayers, encodePaintSnapshot, getBodyAtlas, reduceRegions, type PaintLayers } from "../../src/body/map-utils";
+import { REGION_IDS } from "../../src/domain/contracts";
+import { createEmptyLayers, encodePaintSnapshot, getRegionRaster, reduceRegions, type PaintLayers } from "../../src/body/map-utils";
 
 const PLACEHOLDER = { bodyMapVersion: BODY_MAP_VERSION, width: MAP_SIZE, height: MAP_SIZE, encoding: "png-base64", layers: { burning: "x", sharp: "x", aching: "x", tingling: "x" } } as const;
 
@@ -15,8 +16,10 @@ export const obs = (regionId: RegionId, painType: RegionalObservation["painType"
 
 /** Layers with one region painted at a byte value, using the real atlas. */
 export function paintRegion(regionId: RegionId, type: keyof PaintLayers, value: number, layers = createEmptyLayers(), fraction = 1) {
-  const atlas = getBodyAtlas();
-  const texels = atlas.islands.filter(island => island.regionId === regionId).flatMap(island => [...atlas.islandTexels[island.id]]);
+  const { regionOf } = getRegionRaster();
+  const index = REGION_IDS.indexOf(regionId);
+  const texels: number[] = [];
+  for (let texel = 0; texel < regionOf.length; texel++) if (regionOf[texel] === index) texels.push(texel);
   for (const texel of texels.slice(0, Math.ceil(texels.length * fraction))) layers[type][texel] = Math.max(layers[type][texel], value);
   return layers;
 }

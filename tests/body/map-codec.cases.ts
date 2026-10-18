@@ -9,7 +9,7 @@ import {
   PaintEngine, reduceRegions, validateEntryPayload,
 } from "../../src/body/map-utils";
 import { base64ToBytes, bytesToBase64, decodeGrayPng, encodeGrayPng } from "../../src/body/png";
-import { atlas, fromBack, fromFront } from "./helpers";
+import { atlas, landmark } from "./helpers";
 
 function seeded(seed: number) { return () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 2 ** 32; }
 function noiseLayers() {
@@ -47,7 +47,7 @@ test("all four layers round-trip exactly through lossless PNG, including full-ra
     assert.deepEqual(await decodePaintSnapshot(JSON.parse(JSON.stringify(snapshot))), layers);
   }
   const engine = new PaintEngine(atlas);
-  engine.beginStroke({ layer: "aching", tool: "brush", intensity: 140, radius: .05 }); engine.strokeTo(fromBack(0, 1.15)); engine.endStroke();
+  engine.beginStroke({ layer: "aching", tool: "brush", intensity: 140, radius: .05 }); engine.strokeTo(landmark("lower-back")); engine.endStroke();
   const snapshot = await encodePaintSnapshot(engine.peek());
   const total = PAIN_TYPES.reduce((sum, type) => sum + snapshot.layers[type].length, 0);
   assert.ok(total < 20_000, `sparse maps compress (${total} base64 chars)`);
@@ -89,7 +89,7 @@ test("malformed images, dimensions, and formats are rejected with explicit codes
 
 test("incompatible body-map versions are rejected rather than remapped or emptied", async () => {
   const snapshot = await encodePaintSnapshot(createEmptyLayers());
-  await rejects(decodePaintSnapshot({ ...snapshot, bodyMapVersion: "mannequin-v2" }), "version");
+  await rejects(decodePaintSnapshot({ ...snapshot, bodyMapVersion: "mannequin-v1" }), "version");
   await rejects(validateEntryPayload(entryFor(snapshot, { bodyMapVersion: "mannequin-v0" })), "version");
   await rejects(validateEntryPayload(entryFor({ ...snapshot, bodyMapVersion: "mannequin-v0" })), "version");
   await rejects(validateEntryPayload(entryFor(snapshot, { schemaVersion: 99 })), "version");
@@ -97,9 +97,9 @@ test("incompatible body-map versions are rejected rather than remapped or emptie
 
 test("entry payload validation bounds size and notes and recomputes observations on the server", async () => {
   const engine = new PaintEngine(atlas);
-  engine.beginStroke({ layer: "burning", tool: "brush", intensity: 230, radius: .05 }); engine.strokeTo(fromFront(.12, .75)); engine.endStroke();
+  engine.beginStroke({ layer: "burning", tool: "brush", intensity: 230, radius: .05 }); engine.strokeTo(landmark("left-thigh-middle")); engine.endStroke();
   const maps = await encodePaintSnapshot(engine.peek());
-  const honest = await validateEntryPayload(entryFor(maps, { observations: reduceRegions(engine.peek(), atlas), note: "Worse after sitting." }));
+  const honest = await validateEntryPayload(entryFor(maps, { observations: reduceRegions(engine.peek()), note: "Worse after sitting." }));
   assert.equal(honest.submittedObservationsMatched, true);
   assert.deepEqual(honest.layers, engine.peek());
   assert.equal(honest.entry.note, "Worse after sitting.");

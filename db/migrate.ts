@@ -1,5 +1,5 @@
 import { loadEnvConfig } from "@next/env";
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { Pool } from "pg";
 
 async function migrate() {
@@ -12,9 +12,11 @@ async function migrate() {
     await client.query("BEGIN");
     await client.query("SELECT pg_advisory_xact_lock(70610617)");
     await client.query("CREATE TABLE IF NOT EXISTS journal_migrations (name text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())");
-    const name = "001_journal.sql";
-    const applied = await client.query("SELECT name FROM journal_migrations WHERE name = $1", [name]);
-    if (!applied.rowCount) {
+    // Apply every migration once, in file-name order (001_…, 002_…).
+    const names = (await readdir(new URL("./migrations/", import.meta.url))).filter(name => name.endsWith(".sql")).sort();
+    for (const name of names) {
+      const applied = await client.query("SELECT name FROM journal_migrations WHERE name = $1", [name]);
+      if (applied.rowCount) continue;
       await client.query(await readFile(new URL(`./migrations/${name}`, import.meta.url), "utf8"));
       await client.query("INSERT INTO journal_migrations (name) VALUES ($1)", [name]);
     }

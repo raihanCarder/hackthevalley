@@ -1,6 +1,13 @@
-Original procedural mannequin geometry and UV layout
-Author: Hack the Valley project contributors (authored in this repository with Codex assistance)
-Date: 2026-10-17
+Body asset licensing (mannequin-v2)
+
+1. Geometry: MakeHuman hm08 base mesh, released under CC0 1.0 Universal by its
+   copyright holders (Data Collection AB, Joel Palmius, Jonas Hauquier).
+   See scripts/body/source/LICENSE-CC0.md and PROVENANCE.md. No conditions apply.
+
+2. This repository's processing of that geometry (region labels, UV charts and
+   layout, landmarks, camera presets, and the traced 2D diagram)
+   Author: Hack the Valley project contributors
+   Date: 2026-10-17
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this asset and associated documentation files (the "Asset"), to deal

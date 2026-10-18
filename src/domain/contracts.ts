@@ -1,5 +1,5 @@
 export const SCHEMA_VERSION = 1 as const;
-export const BODY_MAP_VERSION = "mannequin-v1" as const;
+export const BODY_MAP_VERSION = "mannequin-v2" as const;
 export const MAP_SIZE = 512 as const;
 export const PAIN_TYPES = ["burning", "sharp", "aching", "tingling"] as const;
 export type PainType = (typeof PAIN_TYPES)[number];
@@ -10,6 +10,12 @@ export const REGION_IDS = [
   "head", "neck", "front-upper-torso", "front-lower-torso", "back-upper-torso", "back-lower-torso", "pelvis",
   "left-upper-arm", "right-upper-arm", "left-forearm", "right-forearm", "left-hand", "right-hand",
   "left-thigh", "right-thigh", "left-calf", "right-calf", "left-foot", "right-foot",
+  // mannequin-v2 additions: facial features, each finger, and each toe (patient-relative sides).
+  "left-eye", "right-eye", "nose", "mouth", "left-ear", "right-ear",
+  "left-thumb", "right-thumb", "left-index-finger", "right-index-finger", "left-middle-finger", "right-middle-finger",
+  "left-ring-finger", "right-ring-finger", "left-little-finger", "right-little-finger",
+  "left-big-toe", "right-big-toe", "left-second-toe", "right-second-toe", "left-third-toe", "right-third-toe",
+  "left-fourth-toe", "right-fourth-toe", "left-little-toe", "right-little-toe",
 ] as const;
 export type RegionId = (typeof REGION_IDS)[number];
 export type LocalDate = string & { readonly __localDate: unique symbol };
