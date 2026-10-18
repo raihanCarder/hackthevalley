@@ -31,6 +31,13 @@ export function landmark(name: string): Hit {
   const mark = asset.landmarks[name];
   if (!mark) throw new Error(`Unknown landmark ${name}.`);
   const hit = surfaceHitNear(atlas, mark.point);
+  // Prefer a triangle of the landmark's own region among those sharing the vertex (boundary vertices touch several).
+  const welded = atlas.triangles[hit.triangle * 3] === undefined ? -1 : [0, 1, 2].map(k => atlas.triangles[hit.triangle * 3 + k])
+    .find(v => atlas.vertices[v * 3] === hit.point[0] && atlas.vertices[v * 3 + 1] === hit.point[1] && atlas.vertices[v * 3 + 2] === hit.point[2]) ?? -1;
+  if (welded >= 0) for (let i = atlas.vertexTriangleStart[welded]; i < atlas.vertexTriangleStart[welded + 1]; i++) {
+    const t = atlas.vertexTriangles[i];
+    if (regionOfTriangle(t) === mark.regionId) return { point: hit.point, triangle: t, texel: -1, region: mark.regionId };
+  }
   return { ...hit, texel: -1, region: regionOfTriangle(hit.triangle) };
 }
 export function paintedTexels(layer: Uint8Array, threshold = 13) { let count = 0; for (const value of layer) if (value >= threshold) count++; return count; }
