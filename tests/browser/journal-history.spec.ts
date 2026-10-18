@@ -97,7 +97,10 @@ async function assembledJournal(page: Page) {
   await expect(page.getByText("Updated saved context.", { exact: true })).toBeVisible();
   expect(await fingerprints(page)).toEqual(original);
   await slider.fill("1");
-  await expect(page.getByText("No check-in recorded for this date.", { exact: true })).toBeVisible();
+  // A missed day carries the previous check-in's map and note forward, labeled as carried over.
+  await expect(page.getByText("Carried over from Thu, Oct 15, 2026", { exact: true })).toBeVisible();
+  await expect(page.getByText("Updated saved context.", { exact: true })).toBeVisible();
+  expect(await fingerprints(page)).toEqual(original);
   await slider.fill("3");
   await expect(page.getByText("Explicitly empty check-in")).toBeVisible();
   await page.getByRole("tab", { name: "Compare Dates" }).click();

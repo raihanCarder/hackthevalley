@@ -26,10 +26,10 @@ import { MAYA_ENTRIES, MAYA_PROFILE } from "../demo/maya";
 import { BodyViewer } from "../body/body-viewer";
 import { useBodyShapePreference } from "../body/body-shape-preference";
 import { useJournalProfile } from "../journal/profile-context";
-import { initialSelection } from "../journal/selection";
+import { fitRangeToEntries, initialSelection, shiftDate } from "../journal/selection";
 import { openVisitorJournal, closeJournal } from "../journal/client-repository";
 import { syntheticJournalSource } from "../journal/integrations";
-import { validateRange, type EntrySummary, type JournalRepository, type DateRange } from "../journal/repository";
+import { MAX_LIST_DAYS, validateRange, type EntrySummary, type JournalRepository, type DateRange } from "../journal/repository";
 import { HistoryMapLoader, type LoadedMap } from "./map-loader";
 import { MapComparison } from "./map-comparison";
 import {
@@ -77,13 +77,23 @@ function ProfileHistory({ activeProfileId }: { activeProfileId: "maya" | "visito
   const viewerShape = isSynthetic ? undefined : preferredShape;
   const [range, setRange] = useState<DateRange>(initial.range);
   const { from: startDate, to: endDate } = range;
+  // Your history starts at your first check-in, unless a link or the range inputs chose the dates.
+  const [fitRange, setFitRange] = useState(!isSynthetic && !initial.linkedRange);
+  const fitWindow = useMemo(() => ({ from: shiftDate(initial.range.to, -(MAX_LIST_DAYS - 1)), to: initial.range.to }), [initial]);
+  const listRange = fitRange ? fitWindow : range;
+  const rangeRef = useRef(range);
+  useEffect(() => { rangeRef.current = range; }, [range]);
+
+  // Comparison selection
+  const [compareDateA, setCompareDateA] = useState<LocalDate>(initial.range.from);
+  const [compareDateB, setCompareDateB] = useState<LocalDate>(initial.range.to);
   const [currentDate, setCurrentDate] = useState<LocalDate>(initial.date);
   const allDates = useMemo(() => listCalendarDates(startDate, endDate), [startDate, endDate]);
   const entries = useMemo(() => (isSynthetic ? MAYA_ENTRIES : visitorEntries).filter(e => e.localDate >= startDate && e.localDate <= endDate), [isSynthetic, visitorEntries, startDate, endDate]);
   const [viewMode, setViewMode] = useState<"diagram" | "3d">("3d");
   const loader = useMemo(() => isSynthetic ? new HistoryMapLoader(syntheticJournalSource, "maya")
     : repository ? new HistoryMapLoader(repository, "visitor") : null, [isSynthetic, repository]);
-  const [loaded, setLoaded] = useState<{ loader: HistoryMapLoader; date: LocalDate; value: LoadedMap } | null>(null);
+  const [loaded, setLoaded] = useState<{ loader: HistoryMapLoader; date: LocalDate; mapDate: LocalDate; value: LoadedMap } | null>(null);
   const [mapError, setMapError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -94,25 +104,45 @@ function ProfileHistory({ activeProfileId }: { activeProfileId: "maya" | "visito
     openVisitorJournal().then(async source => {
       opened = source;
       if (abort.signal.aborted) { closeJournal(source); return; }
-      const summaries = await source.list("visitor", range, { signal: abort.signal });
-      if (!abort.signal.aborted) { setVisitorEntries(summaries); setRepository(source); }
+      const summaries = await source.list("visitor", listRange, { signal: abort.signal });
+      if (abort.signal.aborted) return;
+      if (fitRange) {
+        const fitted = fitRangeToEntries(summaries, initial.date, listRange.to);
+        if (fitted.from !== rangeRef.current.from || fitted.to !== rangeRef.current.to) {
+          setRange(fitted); setCompareDateA(fitted.from); setCompareDateB(fitted.to);
+        }
+      }
+      setVisitorEntries(summaries); setRepository(source);
     }).catch(error => { if (!abort.signal.aborted) setHistoryError((error as Error).message); })
       .finally(() => { if (!abort.signal.aborted) setHistoryLoading(false); });
     return () => { abort.abort(); closeJournal(opened); };
-  }, [isSynthetic, range, reloadKey]);
+  }, [isSynthetic, listRange, fitRange, initial, reloadKey]);
+
+  // A missed day shows the most recent earlier check-in, labeled as carried over. Trends, comparisons,
+  // and the report still count only real check-ins.
+  const recordedDates = useMemo(() => (isSynthetic ? MAYA_ENTRIES : visitorEntries).map(e => e.localDate).sort(), [isSynthetic, visitorEntries]);
+  const mapDateFor = useCallback((date: LocalDate) => {
+    let source = date;
+    for (const recorded of recordedDates) {
+      if (recorded > date) break;
+      source = recorded;
+    }
+    return source;
+  }, [recordedDates]);
 
   useEffect(() => {
     if (!loader) return;
     const abort = new AbortController();
     setMapError(null);
-    loader.load(currentDate, abort.signal).then(value => {
-      if (!abort.signal.aborted) setLoaded({ loader, date: currentDate, value });
+    const mapDate = mapDateFor(currentDate);
+    loader.load(mapDate, abort.signal).then(value => {
+      if (!abort.signal.aborted) setLoaded({ loader, date: currentDate, mapDate, value });
     }).catch(error => { if (!abort.signal.aborted) setMapError((error as Error).message); });
     // Decode only a small window ahead. Date/profile/range changes abort outdated reads.
     const index = allDates.indexOf(currentDate);
-    for (const date of allDates.slice(index + 1, index + 3)) void loader.load(date, abort.signal).catch(() => {});
+    for (const date of allDates.slice(index + 1, index + 3)) void loader.load(mapDateFor(date), abort.signal).catch(() => {});
     return () => abort.abort();
-  }, [loader, currentDate, allDates]);
+  }, [loader, currentDate, allDates, mapDateFor]);
   // The last loaded day stays on screen until the next one arrives, so playback never blanks or remounts the body.
   const shown = loaded?.loader === loader ? loaded : null;
   const shownDate = shown?.date ?? currentDate;
@@ -129,10 +159,6 @@ function ProfileHistory({ activeProfileId }: { activeProfileId: "maya" | "visito
   const [selectedRegion, setSelectedRegion] = useState<RegionId>("back-lower-torso");
   const [selectedPainType, setSelectedPainType] = useState<PainType>("aching");
 
-  // Comparison selection
-  const [compareDateA, setCompareDateA] = useState<LocalDate>(initial.range.from);
-  const [compareDateB, setCompareDateB] = useState<LocalDate>(initial.range.to);
-
   // Map of entries by date for fast lookup
   const entryMap = useMemo(() => {
     const map = new Map<LocalDate, EntrySummary>();
@@ -142,9 +168,11 @@ function ProfileHistory({ activeProfileId }: { activeProfileId: "maya" | "visito
     return map;
   }, [entries]);
 
-  // Entry for the day on screen (null for an unrecorded gap)
+  // Entry for the day on screen: its own check-in, the carried-over one, or null before the first check-in
   const currentEntry = shown?.value.entry ?? null;
-  const currentSummary = entryMap.get(currentDate) ?? null;
+  const carriedFrom = shown && currentEntry && shown.mapDate !== shown.date ? shown.mapDate : null;
+  const diagramSourceDate = mapDateFor(currentDate);
+  const currentSummary = (isSynthetic ? MAYA_ENTRIES : visitorEntries).find(e => e.localDate === diagramSourceDate) ?? null;
   const visitorUnavailable = !isSynthetic && (!repository || historyLoading || Boolean(historyError));
 
   // Initialize and tear down playback controller
@@ -219,6 +247,7 @@ function ProfileHistory({ activeProfileId }: { activeProfileId: "maya" | "visito
   function changeRange(next: DateRange) {
     try {
       validateRange(next);
+      setFitRange(false);
       playbackRef.current?.pause(); setIsPlaying(false);
       setRange(next);
       setCurrentDate(date => date < next.from ? next.from : date > next.to ? next.to : date);
@@ -409,8 +438,9 @@ function ProfileHistory({ activeProfileId }: { activeProfileId: "maya" | "visito
                   : <>
                     {/* One viewer for every day: unrecorded gaps show a blank, dimmed body under the banner. */}
                     <div className={styles.stageBody} data-gap={currentEntry ? undefined : ""}>
-                      <BodyViewer layers={shown.value.layers} label={currentEntry ? `Saved map for ${shownDate}` : `No map recorded for ${shownDate}`} shape={viewerShape} />
+                      <BodyViewer layers={shown.value.layers} label={carriedFrom ? `Map carried over from ${carriedFrom} to ${shownDate}` : currentEntry ? `Saved map for ${shownDate}` : `No map recorded for ${shownDate}`} shape={viewerShape} />
                     </div>
+                    {carriedFrom && <p className={`${styles.carriedBanner} ${styles.stageBanner}`}>No check-in on this day. Showing the map carried over from {formatDisplayDate(carriedFrom)}.</p>}
                     {!currentEntry && <p className={`${styles.missingStateBanner} ${styles.stageBanner}`}>No check-in recorded for this date. No map is attributed to this day.</p>}
                   </>}
               </div>
@@ -671,7 +701,9 @@ function ProfileHistory({ activeProfileId }: { activeProfileId: "maya" | "visito
             <div className={styles.activeDayCard} aria-busy={switchingDay}>
               <div className={styles.activeDayHeader}>
                 <h2 className={styles.activeDayTitle}>Check-in for {formatDisplayDate(shownDate)}</h2>
-                {visitorUnavailable ? <span>History unavailable</span> : !shown ? <span role="status">Opening saved check-in…</span> : currentEntry ? (
+                {visitorUnavailable ? <span>History unavailable</span> : !shown ? <span role="status">Opening saved check-in…</span> : carriedFrom ? (
+                  <span className={styles.carriedTag}>Carried over from {formatDisplayDate(carriedFrom)}</span>
+                ) : currentEntry ? (
                   currentEntry.observations.length === 0 ? (
                     <span style={{ fontSize: "12px", color: "var(--muted)" }}>Explicitly empty check-in</span>
                   ) : (
@@ -691,7 +723,7 @@ function ProfileHistory({ activeProfileId }: { activeProfileId: "maya" | "visito
                   {/* Note */}
                   {currentEntry.note && (
                     <div className={styles.noteBox}>
-                      <div className={styles.noteLabel}>Patient Journal Note</div>
+                      <div className={styles.noteLabel}>{carriedFrom ? `Patient Journal Note · ${formatDisplayDate(carriedFrom)}` : "Patient Journal Note"}</div>
                       <div>{currentEntry.note}</div>
                     </div>
                   )}
@@ -723,7 +755,7 @@ function ProfileHistory({ activeProfileId }: { activeProfileId: "maya" | "visito
                     </div>
                   ) : (
                     <div className={styles.emptyStateBanner}>
-                      Saved with nothing marked on this calendar day.
+                      {carriedFrom ? `Nothing was marked in the check-in from ${formatDisplayDate(carriedFrom)}.` : "Saved with nothing marked on this calendar day."}
                     </div>
                   )}
                 </>

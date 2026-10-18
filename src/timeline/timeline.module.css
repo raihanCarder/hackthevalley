@@ -302,6 +302,22 @@
   opacity: 0.35;
 }
 
+.carriedBanner {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 13px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.carriedTag {
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
 .stageBanner {
   position: absolute;
   top: 16px;
