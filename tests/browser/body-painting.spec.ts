@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { landmark } from "./body-landmarks";
 
 // Front/back named views stand 2.9 m from the orbit target (0, 1, 0) with a 40° vertical field of view.
 const DISTANCE = 2.9;
@@ -14,6 +15,8 @@ async function open(page: Page, path = "/") {
 async function projector(_page: Page) {
   return (x: number, y: number, z: number, view: "front" | "back" = "front"): ModelPoint => ({ x, y, z, view });
 }
+/** A named surface point of the body asset, seen from a named view. */
+const lm = (name: string, view: "front" | "back" = "front"): ModelPoint => { const [x, y, z] = landmark(name); return { x, y, z, view }; };
 async function toScreen(page: Page, { x, y, z, view }: ModelPoint): Promise<Point> {
   const box = (await page.locator("canvas").boundingBox())!;
   const t = Math.tan(20 * Math.PI / 180), aspect = box.width / box.height;
@@ -37,7 +40,7 @@ test("paints the patient's left calf from the front; marks stay attached while r
   await open(page);
   const at = await projector(page);
   await page.getByRole("button", { name: "Paint", exact: true }).click();
-  await stroke(page, [at(.135, .42, .08), at(.135, .25, .08)]);
+  await stroke(page, [lm("left-calf-upper"), lm("left-calf-lower")]);
   expect(await observations(page)).toMatch(/left-calf:aching/);
   expect(await observations(page)).not.toMatch(/right-calf/);
   const marked = page.getByRole("region", { name: "Marked areas" });
@@ -57,7 +60,7 @@ test("paints the patient's left calf from the front; marks stay attached while r
   // Paint the lower back from behind: the back surface only.
   await page.getByRole("button", { name: "Paint", exact: true }).click();
   const back = await projector(page);
-  await stroke(page, [back(-.1, 1.15, -.14, "back"), back(.1, 1.15, -.14, "back")]);
+  await stroke(page, [lm("lower-back-right", "back"), lm("lower-back-left", "back")]);
   expect(await observations(page)).toMatch(/back-lower-torso:aching/);
   expect(await observations(page)).not.toMatch(/front-lower-torso/);
 });
@@ -80,7 +83,7 @@ test("a single fast drag covers the same path as a slow one", async ({ page }) =
   await open(page);
   const at = await projector(page);
   await page.getByRole("button", { name: "Paint", exact: true }).click();
-  const path = [at(.12, .84, .1), at(.12, .5, .08)];
+  const path = [lm("left-thigh-upper"), lm("left-thigh-lower")];
   await stroke(page, path, 40);
   const slow = await coverage(page, "left-thigh:aching");
   await page.getByRole("button", { name: "Undo", exact: true }).click();
@@ -94,7 +97,7 @@ test("a single fast drag covers the same path as a slow one", async ({ page }) =
 test("overlapping sensations, layer erasing, button undo, and keyboard undo", async ({ page }) => {
   await open(page);
   const at = await projector(page);
-  const path = [at(-.12, .82, .1), at(-.12, .6, .09)];
+  const path = [lm("right-thigh-upper"), lm("right-thigh-lower")];
   await pick(page, "Aching / dull");
   await expect(page.getByRole("button", { name: "Paint", exact: true })).toHaveAttribute("aria-pressed", "true");
   await page.getByLabel("Intensity").fill("4");
@@ -142,7 +145,7 @@ test("capture and read-only loads never change the draft; incompatible maps are 
   await open(page);
   const at = await projector(page);
   await pick(page, "Tingling / numbness");
-  await stroke(page, [at(.12, .82, .1), at(.12, .6, .09)]);
+  await stroke(page, [lm("left-thigh-upper"), lm("left-thigh-lower")]);
   const before = await observations(page);
   const result = await page.evaluate(async () => {
     type Handle = { snapshot(): Record<string, Uint8Array>; capture(o?: object): Promise<Record<string, string>>; loadSnapshot(s: unknown): Promise<void> };
@@ -178,7 +181,7 @@ test("reduced motion freezes pain effects and keeps painting usable", async ({ p
   await expect(page.locator("canvas")).toHaveAttribute("data-motion", "reduced");
   const at = await projector(page);
   await pick(page, "Sharp / stabbing");
-  await stroke(page, [at(0, 1.4, .14), at(.1, 1.3, .14)]);
+  await stroke(page, [lm("chest"), lm("chest")]);
   expect(await observations(page)).toContain("front-upper-torso:sharp");
   await page.locator(".body-workbench").screenshot({ path: "test-results/body-reduced-motion.png" });
 });
@@ -204,7 +207,7 @@ test.describe("touch", () => {
     await page.locator("canvas").scrollIntoViewIfNeeded();
     const at = await projector(page);
     const client = await page.context().newCDPSession(page);
-    const [x0, y0] = await toScreen(page, at(.12, .82, .1)), [x1, y1] = await toScreen(page, at(.12, .6, .09));
+    const [x0, y0] = await toScreen(page, lm("left-thigh-upper")), [x1, y1] = await toScreen(page, lm("left-thigh-lower"));
     // boundingBox and CDP touch coordinates are both relative to the viewport.
     const point = (x: number, y: number) => [{ x, y, id: 1 }];
     await client.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: point(x0, y0) });
@@ -245,7 +248,7 @@ test("navigation releases renderer resources and a remounted editor still paints
   await expect(page.locator("canvas")).toHaveCount(1);
   const at = await projector(page);
   await page.getByRole("button", { name: "Paint", exact: true }).click();
-  await stroke(page, [at(.135, .42, .08), at(.135, .25, .08)]);
+  await stroke(page, [lm("left-calf-upper"), lm("left-calf-lower")]);
   expect(await observations(page)).toContain("left-calf:aching");
 });
 
@@ -254,12 +257,12 @@ test("painting sustains the frame-rate target while effects animate", async ({ p
   const at = await projector(page);
   await page.getByRole("button", { name: "Paint", exact: true }).click();
   await page.locator("canvas").scrollIntoViewIfNeeded();
-  await page.mouse.move(...await toScreen(page, at(-.15, 1.4, .14)));
+  await page.mouse.move(...await toScreen(page, at(-.12, 1.4, .17)));
   await page.mouse.down();
   const started = Date.now();
   for (let i = 0; Date.now() - started < 2500; i++) {
     const t = i / 15;
-    await page.mouse.move(...await toScreen(page, at(-.15 + .3 * (.5 + .5 * Math.sin(t)), 1.4 - .25 * (.5 + .5 * Math.cos(t * .7)), .14)));
+    await page.mouse.move(...await toScreen(page, at(-.12 + .24 * (.5 + .5 * Math.sin(t)), 1.4 - .2 * (.5 + .5 * Math.cos(t * .7)), .17)));
   }
   await page.mouse.up();
   await page.waitForTimeout(1100);
