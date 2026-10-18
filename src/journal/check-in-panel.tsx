@@ -1,6 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { ArrowUp, Copy, RotateCcw } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
 import { parseLocalDate, type LocalDate } from "../domain/contracts";
 import { acknowledgeSave, copyPreviousMap, createDraft, editDraft, rejectSave, restoreDraft, saveInput, type JournalDraft } from "./draft";
 import { localToday, MAX_NOTE_LENGTH, type JournalRepository, type JournalStorage } from "./repository";
@@ -169,24 +174,30 @@ export function CheckInPanel({ storage, repository, editor, connectionError, onB
   const unavailable = !repository || !editor;
   const stateText = loading ? "Opening check-in…" : draft.saveState === "saved" ? "Saved check-in" : draft.saveState === "saving" ? "Saving…" : draft.saveState !== "idle" ? "Unsaved draft" : readState === "missing" ? "No check-in recorded" : readState === "error" ? "Check-in unavailable" : "Draft only";
   return <aside className={styles.panel} aria-label="Daily check-in">
+    <div className={styles.panelHeader}>
     <div className={styles.dateField}><label htmlFor="check-in-date">Check-in date</label>
-      <input id="check-in-date" type="date" value={draft.localDate} disabled={busy} onChange={event => void changeDate(event.target.value)} />
-      <small>{draft.timeZone}</small></div>
-    <p className={styles.draftStatus} role="status" aria-live="polite">{stateText}</p>
+      <Input id="check-in-date" type="date" value={draft.localDate} disabled={busy} onChange={event => void changeDate(event.target.value)} />
+    </div>
+    <Badge variant="outline" className={styles.draftStatus} role="status" aria-live="polite">{stateText}</Badge>
     <div className={styles.mapActions}>
-      <button type="button" disabled={unavailable || busy || loading} onClick={() => void prepareMap("previous")}>Copy previous map</button>
-      <button type="button" disabled={unavailable || busy || loading} onClick={() => void prepareMap("empty")}>Start with an empty map</button>
+      <Button variant="ghost" type="button" disabled={unavailable || busy || loading} onClick={() => void prepareMap("previous")}><Copy size={14} aria-hidden="true" />Copy previous map</Button>
+      <Button variant="ghost" type="button" disabled={unavailable || busy || loading} onClick={() => void prepareMap("empty")}><RotateCcw size={14} aria-hidden="true" />Start with an empty map</Button>
+    </div>
     </div>
     {draft.copiedFrom && <p className={styles.source}>Map copied from {draft.copiedFrom}. Save to record it for {draft.localDate}.</p>}
+    <div className={styles.composer}>
     <div className={styles.noteField}><label htmlFor="check-in-note">A note for this day <span>(optional)</span></label>
-      <textarea id="check-in-note" rows={5} maxLength={MAX_NOTE_LENGTH} value={draft.note} aria-describedby="note-help note-length"
+      <Textarea id="check-in-note" rows={2} maxLength={MAX_NOTE_LENGTH} value={draft.note} aria-describedby="note-help note-length"
         placeholder="What would you like to remember?" onChange={event => update(editDraft(active.current!, { note: event.target.value }))} />
-      <div className={styles.noteMeta}><span id="note-help">Written in your own words.</span><span id="note-length">{draft.note.length.toLocaleString()} / 4,000</span></div>
     </div>
-    <p className={styles.explanation}>An empty map is recorded only when you save it. Days you skip stay unrecorded.</p>
-    <button className={styles.save} type="button" disabled={unavailable || busy || loading || readState === "error"} onClick={() => void save()}>{draft.saveState === "error" ? "Retry saving check-in" : draft.saveState === "saving" ? "Saving check-in…" : "Save check-in"}</button>
+    <div className={styles.composerFooter}>
+      <div className={styles.noteMeta}><span id="note-help">Written in your own words.</span><span id="note-length">{draft.note.length.toLocaleString()} / 4,000</span></div>
+      <Button className={styles.save} type="button" disabled={unavailable || busy || loading || readState === "error"} onClick={() => void save()}>{draft.saveState === "error" ? "Retry saving check-in" : draft.saveState === "saving" ? "Saving check-in…" : "Save check-in"}<ArrowUp size={16} aria-hidden="true" /></Button>
+    </div>
+    </div>
     {(draft.error || message || connectionError) && <p className={styles.error} role="alert">{draft.error ?? message ?? connectionError}</p>}
     {unavailable && <p className={styles.explanation}>Saving body maps is not available yet. Your note stays here while this page is open.</p>}
+    <p className={styles.explanation}>An empty map is recorded only when you save it. Days you skip stay unrecorded.</p>
     <p className={styles.privacy}>Notes are not sent to an AI service when you save a check-in.</p>
   </aside>;
 }

@@ -7,6 +7,7 @@ async function ready(page: Page) {
   await expect(page.getByRole("button", { name: "Save check-in", exact: true })).toBeEnabled();
 }
 async function paintCalf(page: Page) {
+  await page.getByRole("link", { name: "Check-in", exact: true }).click();
   await page.getByRole("button", { name: "Paint", exact: true }).click();
   const canvas = page.locator("canvas");
   await canvas.scrollIntoViewIfNeeded();
@@ -24,6 +25,7 @@ async function paintCalf(page: Page) {
     await page.mouse.move(x0, y0); await page.mouse.down(); await page.mouse.move(x1, y1, { steps: 10 }); await page.mouse.up();
   }
   await expect(canvas).toHaveAttribute("data-observations", /left-calf:aching/);
+  await page.getByRole("link", { name: "Check-in details", exact: true }).click();
 }
 async function fingerprints(page: Page) {
   await expect(page.locator("canvas").first()).toHaveAttribute("data-revision", /\d+/);
@@ -41,7 +43,7 @@ async function save(page: Page) {
 async function assembledJournal(page: Page) {
   const errors: string[] = [];
   page.on("pageerror", e => errors.push(e.message));
-  await page.goto("/");
+  await page.goto("/check-in");
   await page.getByLabel("Save location").selectOption(storage);
   await ready(page);
   const date = page.getByLabel("Check-in date", { exact: true });
@@ -67,7 +69,7 @@ async function assembledJournal(page: Page) {
   await page.getByRole("button", { name: "Visitor (My Journal)" }).click();
   await expect(page.locator("[data-history-root]")).toHaveAttribute("data-selected-date", "2026-10-15");
   await expect(page.getByText("Updated saved context.", { exact: true })).toBeVisible();
-  await page.getByRole("link", { name: "Check-in", exact: true }).click(); await ready(page);
+  await page.getByRole("link", { name: "Check-in details", exact: true }).click(); await ready(page);
   // Copy over a skipped date, edit and save within the usability target.
   const started = Date.now();
   await date.fill("2026-10-17");
@@ -122,7 +124,7 @@ test.describe("narrow touch integration", () => {
 
 
 test("a rejected browser write preserves the real painted draft and retries in the same store", async ({ page }) => {
-  await page.goto("/"); await page.getByLabel("Save location").selectOption("indexeddb"); await ready(page);
+  await page.goto("/check-in"); await page.getByLabel("Save location").selectOption("indexeddb"); await ready(page);
   await paintCalf(page);
   await page.getByLabel("A note for this day", { exact: false }).fill("Keep this note and painting.");
   const before = await fingerprints(page);
@@ -147,7 +149,7 @@ test("a rejected browser write preserves the real painted draft and retries in t
 
 if (storage === "postgresql") {
   test("server sessions isolate real saved maps and rejected server writes retain the draft", async ({ page, browser, baseURL }) => {
-    await page.goto("/"); await page.getByLabel("Save location").selectOption("postgresql"); await ready(page);
+    await page.goto("/check-in"); await page.getByLabel("Save location").selectOption("postgresql"); await ready(page);
     await page.getByLabel("Check-in date", { exact: true }).fill("2026-10-14");
     await paintCalf(page);
     const before = await fingerprints(page);

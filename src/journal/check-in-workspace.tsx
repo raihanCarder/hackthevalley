@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
+import { usePathname } from "next/navigation";
 import type { BodyHandle } from "../body/body-handle";
 import { createEditorBridge } from "./editor";
 import { BodyWorkbench } from "../body/body-workbench";
-import { PAIN_LABELS, PAIN_TYPES } from "../domain/contracts";
 import { CheckInPanel } from "./check-in-panel";
 import { IndexedDbJournal, localVisitorId } from "./indexeddb";
 import { HttpJournal } from "./http";
@@ -14,7 +14,8 @@ import styles from "./journal.module.css";
 
 interface ServiceStatuses { postgresql: string; gemini: string }
 
-export function CheckInWorkspace() {
+export function CheckInWorkspace({ children }: { children: React.ReactNode }) {
+  const details = usePathname() === "/check-in";
   const body = useRef<BodyHandle | null>(null);
   const [editor] = useState(() => createEditorBridge(body));
   const [storage, setStorage] = useState<JournalStorage | null>(null);
@@ -65,7 +66,14 @@ export function CheckInWorkspace() {
     return () => { cancelled = true; if (local) void local.close(); };
   }, [storage]);
 
-  return <>
+  // Both views stay mounted in their shared layout, preserving the live map and unsaved notes between tabs.
+  return <div className="journal-workspace" data-view={details ? "details" : "map"}>
+    {children}
+    <div className={styles.mapView} hidden={details}><BodyWorkbench handleRef={body} onChange={editor.notify} /></div>
+    <section className={styles.detailsView} hidden={!details} aria-label="Check-in details">
+      <header className="page-heading"><div><p className="section-label">Your daily check-in</p><h1>Check-in details</h1></div><p>Add a note and save the body map you’ve been working on.</p></header>
+      {preferenceError && <p className={styles.error} role="alert">{preferenceError}</p>}
+      {storage ? <CheckInPanel storage={storage} repository={repository?.storage === storage ? repository : null} editor={editor} connectionError={error} onBusyChange={setBusy} /> : <aside className={styles.panel}>Choose where to save your check-ins.</aside>}
     <div className={styles.storage}>
       <label htmlFor="journal-storage">Save location<select id="journal-storage" disabled={busy} value={storage ?? ""} onChange={event => chooseStorage(event.target.value as JournalStorage)}>
         {!storage && <option value="" disabled>Choose a save location</option>}
@@ -73,8 +81,7 @@ export function CheckInWorkspace() {
       </select></label>
       <dl className={styles.services} aria-label="Service status"><div><dt>PostgreSQL:</dt><dd>{services.postgresql}</dd></div><div><dt>Gemini:</dt><dd>{services.gemini}</dd></div></dl>
     </div>
-    {preferenceError && <p className={styles.error} role="alert">{preferenceError}</p>}
-    <div className="check-in-layout"><BodyWorkbench handleRef={body} onChange={editor.notify} />{storage ? <CheckInPanel storage={storage} repository={repository?.storage === storage ? repository : null} editor={editor} connectionError={error} onBusyChange={setBusy} /> : <aside className={styles.panel}>Choose where to save your check-ins.</aside>}</div>
-    <div className={styles.sensations} aria-label="Pain sensation legend"><ul>{PAIN_TYPES.map(type => <li key={type}><span className={`sensation-dot ${type}`} aria-hidden="true" />{PAIN_LABELS[type]}</li>)}</ul></div>
-  </>;
+      <section className={styles.keyboardGuide} aria-labelledby="keyboard-guide-heading"><h2 id="keyboard-guide-heading">Using the body map</h2><p>In Rotate mode, drag to turn the body and scroll to zoom. In Paint mode, drag on the body to mark what you feel.</p><p>With the body focused, use arrow keys to turn, + / − to zoom, and Home to reset the view. Ctrl or ⌘ + Z undoes a stroke.</p></section>
+    </section>
+  </div>;
 }

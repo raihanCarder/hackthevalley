@@ -47,7 +47,7 @@
 }
 
 .profileButton:hover {
-  background: #e3ece5;
+  background: var(--secondary);
 }
 
 .profileButton[aria-pressed="true"] {
@@ -63,8 +63,8 @@
   font-weight: 600;
   padding: 4px 10px;
   border-radius: 20px;
-  background: #edf3ee;
-  color: var(--accent);
+  background: var(--surface);
+  color: var(--primary);
   border: 1px solid var(--border);
 }
 
@@ -96,7 +96,7 @@
 
 .currentDateLabel {
   font-size: 20px;
-  font-family: Georgia, serif;
+  font-family: inherit;
   font-weight: bold;
   letter-spacing: -0.5px;
   color: var(--foreground);
@@ -115,7 +115,7 @@
 
 .dateSlider {
   width: 100%;
-  accent-color: var(--accent);
+  accent-color: var(--primary);
   height: 28px;
   cursor: pointer;
 }
@@ -125,7 +125,7 @@
   height: 6px;
   border-radius: 3px;
   overflow: hidden;
-  background: #e2e8e3;
+  background: var(--secondary);
   width: 100%;
 }
 
@@ -137,12 +137,12 @@
 
 .tickMissing {
   flex: 1;
-  background: #dfc8c8;
+  background: #745658;
 }
 
 .tickEmpty {
   flex: 1;
-  background: #c3d3c7;
+  background: #60766b;
 }
 
 .playbackControls {
@@ -177,7 +177,7 @@
 }
 
 .controlButton:hover:not(:disabled) {
-  background: #e6eee8;
+  background: var(--secondary);
 }
 
 .controlButton:disabled {
@@ -194,7 +194,7 @@
 }
 
 .playPauseButton:hover:not(:disabled) {
-  background: #2b4c3a;
+  background: #48533d;
 }
 
 .speedSelector {
@@ -250,7 +250,7 @@
   justify-content: space-between;
   align-items: center;
   padding: 12px 18px;
-  background: #e2eae3;
+  background: var(--surface);
   border-bottom: 1px solid var(--border);
 }
 
@@ -294,7 +294,7 @@
 }
 
 .cameraButton:hover {
-  background: #dce5de;
+  background: var(--secondary);
 }
 
 .canvasStage {
@@ -378,7 +378,7 @@
 
 .diagramRegion:focus-visible {
   outline: none;
-  stroke: var(--accent);
+  stroke: var(--primary);
   stroke-width: 2.5px;
 }
 
@@ -423,8 +423,8 @@
   font-size: 11px;
   font-weight: 600;
   color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  text-transform: none;
+  letter-spacing: 0;
   margin-bottom: 4px;
 }
 
@@ -453,7 +453,7 @@
 }
 
 .emptyStateBanner {
-  background: #edf3ee;
+  background: var(--surface);
   border: 1px dashed var(--border);
   border-radius: 10px;
   padding: 16px;
@@ -463,8 +463,8 @@
 }
 
 .missingStateBanner {
-  background: #fbf1ef;
-  border: 1px dashed #e4b6ad;
+  background: var(--error-surface);
+  border: 1px dashed #7c4541;
   border-radius: 10px;
   padding: 16px;
   text-align: center;
@@ -499,14 +499,14 @@
 }
 
 .tabButton:hover {
-  background: #e8efe9;
+  background: var(--secondary);
   color: var(--foreground);
 }
 
 .tabButton[aria-selected="true"] {
   background: var(--surface);
   border-color: var(--border);
-  color: var(--accent);
+  color: var(--primary);
 }
 
 .analysisPanel {
@@ -573,7 +573,7 @@
   font-size: 20px;
   font-weight: bold;
   color: var(--foreground);
-  font-family: Georgia, serif;
+  font-family: inherit;
 }
 
 .statLabel {
@@ -613,7 +613,7 @@
 .legendLineIntensity {
   width: 18px;
   height: 3px;
-  background: var(--accent);
+  background: var(--primary);
   border-radius: 2px;
 }
 
@@ -655,7 +655,7 @@
 }
 
 .quickCompareButton:hover {
-  background: #dce5de;
+  background: var(--secondary);
 }
 
 .changesSummaryList {
@@ -665,8 +665,8 @@
 }
 
 .newlyMarkedBox {
-  background: #edf6ef;
-  border: 1px solid #c0d9c4;
+  background: #30372a;
+  border: 1px solid #566148;
   border-radius: 10px;
   padding: 12px 14px;
   display: flex;
@@ -677,7 +677,7 @@
 .changeBoxTitle {
   font-size: 13px;
   font-weight: 700;
-  color: var(--accent);
+  color: var(--primary);
   margin: 0;
 }
 
@@ -744,3 +744,5 @@
   clip-path: inset(50%);
   white-space: nowrap;
 }
+
+@media (max-width: 1180px) { .mainGrid { grid-template-columns: minmax(0, 1fr); } .profileSwitcher { flex-wrap: wrap; } }

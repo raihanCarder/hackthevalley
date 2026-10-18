@@ -3,7 +3,7 @@ import { MAYA_ENTRIES } from "../../src/demo/maya";
 const entry = (date: string) => ({ ...MAYA_ENTRIES[0], id: `visitor-${date}`, profileId: "visitor-test", localDate: date });
 
 test("date-specific notes remain drafts and skipped dates stay unrecorded", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/check-in");
   const date = page.getByLabel("Check-in date", { exact: true });
   const note = page.getByLabel("A note for this day", { exact: false });
   await expect(page.getByRole("status").filter({ hasText: "No check-in recorded" })).toBeVisible();
@@ -32,7 +32,7 @@ test("date-specific notes remain drafts and skipped dates stay unrecorded", asyn
 
 test("failed server selection keeps the store explicit and preserves the browser draft", async ({ page }) => {
   await page.route("**/api/session", route => route.fulfill({ status: 503, json: { error: { code: "unavailable", message: "PostgreSQL is unavailable. Your selected store has not changed." } } }));
-  await page.goto("/");
+  await page.goto("/check-in");
   const note = page.getByLabel("A note for this day", { exact: false });
   await expect(page.getByText("No check-in recorded", { exact: true })).toBeVisible();
   await note.fill("Keep my browser draft");
@@ -54,7 +54,7 @@ test("late server reads do not replace a newer selected date", async ({ page }) 
     const saved = { ...entry(date), note: `Saved note for ${date}` };
     await route.fulfill({ json: { entry: saved } }).catch(() => {});
   });
-  await page.goto("/");
+  await page.goto("/check-in");
   await page.getByLabel("Save location").selectOption("postgresql");
   const date = page.getByLabel("Check-in date", { exact: true });
   const note = page.getByLabel("A note for this day", { exact: false });
@@ -69,7 +69,7 @@ test("late server reads do not replace a newer selected date", async ({ page }) 
 
 test("a failed PostgreSQL selection remains selected after reload", async ({ page }) => {
   await page.route("**/api/session", route => route.fulfill({ status: 503, json: { error: { code: "unavailable", message: "PostgreSQL is unavailable." } } }));
-  await page.goto("/");
+  await page.goto("/check-in");
   await expect(page.getByLabel("Save location")).toHaveValue("indexeddb");
   await page.getByLabel("Save location").selectOption("postgresql");
   await expect(page.getByText("PostgreSQL is unavailable.", { exact: true })).toBeVisible();
@@ -87,7 +87,7 @@ test("typing while a saved entry loads preserves the newer note as unsaved", asy
     const date = new URL(route.request().url()).pathname.split("/").at(-1)!;
     await route.fulfill({ json: { entry: { ...entry(date), note: "Older saved note" } } }).catch(() => {});
   });
-  await page.goto("/");
+  await page.goto("/check-in");
   await expect(page.getByLabel("Save location")).toHaveValue("indexeddb");
   await page.getByLabel("Save location").selectOption("postgresql");
   await expect(page.getByText("Opening check-in…", { exact: true })).toBeVisible();

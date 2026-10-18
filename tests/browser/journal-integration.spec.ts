@@ -18,17 +18,19 @@ async function paintFront(page: Page, from: [number, number, number], to: [numbe
 const observations = (page: Page) => page.locator("canvas").getAttribute("data-observations");
 
 test("a painted check-in saves to the browser, restores exactly after reload, and appears in the visitor report", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/check-in");
   await expect(page.locator(".scene-mount")).toHaveAttribute("data-status", "ready");
   await expect(page.getByText("No check-in recorded", { exact: true })).toBeVisible();
   const date = page.getByLabel("Check-in date", { exact: true });
   await date.fill("2026-10-16");
   await expect(page.getByText("No check-in recorded", { exact: true })).toBeVisible();
 
+  await page.getByRole("link", { name: "Check-in", exact: true }).click();
   await page.locator("label", { hasText: "Burning" }).click();
   await paintFront(page, landmark("left-thigh-upper"), landmark("left-thigh-lower"));
   await expect.poll(() => observations(page)).toContain("left-thigh:burning");
   const painted = await observations(page);
+  await page.getByRole("link", { name: "Check-in details", exact: true }).click();
   await expect(page.getByText("Unsaved draft", { exact: true })).toBeVisible();
   await page.getByLabel("A note for this day", { exact: false }).fill("Thigh burned after the long drive. Walking helped a little.");
   await page.getByRole("button", { name: "Save check-in", exact: true }).click();
@@ -56,6 +58,28 @@ test("a painted check-in saves to the browser, restores exactly after reload, an
   await expect(sheet.locator("tbody tr")).toContainText("Left thigh");
   await expect(sheet).toContainText("Walking helped a little.");
   await expect(sheet.locator("figure img")).toHaveCount(2);
+});
+
+test("model and details tabs preserve the same live editor and unsaved note", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator(".scene-mount")).toHaveAttribute("data-status", "ready");
+  const created = await page.evaluate(() => (globalThis as unknown as { __painJournalBodyScenes: { created: number } }).__painJournalBodyScenes.created);
+  await page.locator("label", { hasText: "Burning" }).click();
+  await paintFront(page, landmark("left-thigh-upper"), landmark("left-thigh-lower"));
+  const painted = await observations(page);
+  expect(painted).toContain("left-thigh:burning");
+  await page.getByRole("link", { name: "Check-in details", exact: true }).click();
+  const note = page.getByLabel("A note for this day", { exact: false });
+  await expect(page.getByRole("link", { name: "Check-in details", exact: true })).toHaveAttribute("aria-current", "page");
+  await note.fill("Keep this note while I return to the body.");
+  await page.getByRole("link", { name: "Check-in", exact: true }).click();
+  await expect(page.getByRole("complementary", { name: "Daily check-in" })).toBeHidden();
+  expect(await observations(page)).toBe(painted);
+  await expect(page.getByRole("button", { name: "Paint", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("link", { name: "Check-in details", exact: true }).click();
+  await expect(note).toHaveValue("Keep this note while I return to the body.");
+  await expect(page.getByText("Unsaved draft", { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => (globalThis as unknown as { __painJournalBodyScenes: { created: number } }).__painJournalBodyScenes.created)).toBe(created);
 });
 
 test("Maya's records are served read-only through the journal API", async ({ request, baseURL }) => {
