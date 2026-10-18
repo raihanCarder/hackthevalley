@@ -26,6 +26,7 @@ import {
 } from "../domain/contracts";
 import { MAYA_ENTRIES, MAYA_PROFILE } from "../demo/maya";
 import { BodyViewer } from "../body/body-viewer";
+import { useBodyShapePreference } from "../body/body-shape-preference";
 import { openVisitorJournal, closeJournal } from "../journal/client-repository";
 import { syntheticJournalSource } from "../journal/integrations";
 import { localToday, validateRange, type EntrySummary, type JournalRepository, type DateRange } from "../journal/repository";
@@ -61,6 +62,9 @@ export function HistoryView() {
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
   const isSynthetic = activeProfileId === "maya";
+  // The visitor's own maps show on their chosen body shape; Maya always uses the default figure.
+  const [preferredShape] = useBodyShapePreference();
+  const viewerShape = isSynthetic ? undefined : preferredShape;
   const [range, setRange] = useState<DateRange>({ from: MAYA_PROFILE.dateRange.start, to: MAYA_PROFILE.dateRange.end });
   const { from: startDate, to: endDate } = range;
   const selections = useRef<Record<string, { range: DateRange; date: LocalDate }>>({});
@@ -448,7 +452,7 @@ export function HistoryView() {
                 {visitorUnavailable ? <p role="status">{historyError ? "Saved maps are unavailable from the selected store." : "Loading saved history…"}</p>
                   : mapError ? <p role="alert">This saved map cannot be shown: {mapError}</p>
                   : !selectedMap && (isSynthetic || repository) ? <p role="status">Loading saved map…</p>
-                  : currentEntry ? <BodyViewer layers={selectedMap?.layers ?? null} label={`Saved map for ${currentDate}`} />
+                  : currentEntry ? <BodyViewer layers={selectedMap?.layers ?? null} label={`Saved map for ${currentDate}`} shape={viewerShape} />
                   : <p className={styles.missingStateBanner}>No check-in recorded for this date. No map is attributed to this day.</p>}
               </div>
             )}
@@ -734,7 +738,7 @@ export function HistoryView() {
                 </div>
               )}
 
-              <MapComparison loader={loader} earlier={compareDateA} later={compareDateB} />
+              <MapComparison loader={loader} earlier={compareDateA} later={compareDateB} shape={viewerShape} />
               {/* Comparison Observations */}
               <div className={styles.changesSummaryList} hidden={!entryMap.has(compareDateA) || !entryMap.has(compareDateB)}>
                 {/* Newly marked areas */}

@@ -7,12 +7,15 @@ import { TEXEL_COUNT, type PaintLayers } from "./layers";
 export const STATIC_TIME = 1.37;
 
 const vertexShader = /* glsl */ `
+attribute vec3 garment;
 varying vec2 vUv;
 varying vec3 vNormal;
 varying vec3 vObject;
+varying vec3 vGarment;
 void main() {
   vUv = uv;
   vObject = position;
+  vGarment = garment;
   vNormal = normalize(mat3(modelMatrix) * normal);
   gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
 }`;
@@ -24,6 +27,9 @@ uniform sampler2D uPaint;
 uniform float uTime;
 uniform float uMotion;
 uniform vec3 uBase;
+uniform vec3 uGarment;
+uniform vec3 uGarmentEdge;
+varying vec3 vGarment;
 uniform vec3 uSky;
 uniform vec3 uGround;
 uniform vec3 uKeyColor;
@@ -91,7 +97,19 @@ void main() {
   vec3 highlight = vec3(1.0, .45, .1) * hot * share.x * .25
     + vec3(1.0, .97, .9) * spark * share.y * .8
     + vec3(.6, .82, 1.0) * speck * share.w * .6;
-  vec3 color = mix(uBase * irradiance, painColor * shade + highlight, alpha * .95);
+  // Neutral grey figure with a painted-on top and shorts (display only); pain always draws on top.
+  // Straight hems from the base-mesh height (z): crop top 1.33–1.51 m, shorts 0.865–1.155 m on the base figure.
+  float y = vGarment.z;
+  float aa = max(fwidth(y), 1e-4);
+  float topBand = smoothstep(1.33 - aa, 1.33 + aa, y) * (1.0 - smoothstep(1.51 - aa, 1.51 + aa, y)) * step(.5, vGarment.x);
+  float shortsBand = smoothstep(.865 - aa, .865 + aa, y) * (1.0 - smoothstep(1.155 - aa, 1.155 + aa, y)) * step(.5, vGarment.y);
+  float garment = max(topBand, shortsBand);
+  float hem = step(.5, vGarment.x) * (1.0 - smoothstep(0.0, aa * 2.0, min(abs(y - 1.33), abs(y - 1.51))))
+            + step(.5, vGarment.y) * (1.0 - smoothstep(0.0, aa * 2.0, min(abs(y - .865), abs(y - 1.155))));
+  float edge = clamp(hem, 0.0, 1.0);
+  vec3 surface = mix(uBase, uGarment, garment);
+  surface = mix(surface, uGarmentEdge, edge * .8);
+  vec3 color = mix(surface * irradiance, painColor * shade + highlight, alpha * .95);
   gl_FragColor = vec4(color, 1.0);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
@@ -131,7 +149,10 @@ export function createPainMaterial(texture: THREE.Texture) {
       uPaint: { value: texture },
       uTime: { value: STATIC_TIME },
       uMotion: { value: 1 },
-      uBase: { value: new THREE.Color(0xc2cec5) },
+      // Neutral greys: no skin tone, and maximum contrast for the four pain colours.
+      uBase: { value: new THREE.Color(0xc9cbcc) },
+      uGarment: { value: new THREE.Color(0x9aa0a4) },
+      uGarmentEdge: { value: new THREE.Color(0x7b8287) },
       uSky: { value: lambert(0xffffff, 2.3) },
       uGround: { value: lambert(0x667a6b, 2.3) },
       uKeyColor: { value: lambert(0xffffff, 3.1) },

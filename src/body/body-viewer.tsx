@@ -5,6 +5,7 @@ import { useEffect, useId, useMemo, useState, type RefObject } from "react";
 import { PAIN_TYPES, type CameraView, type PainType } from "@/domain/contracts";
 import { DeferredBodyHandle, type BodyHandle } from "./body-handle";
 import { DEFAULT_BRUSH } from "./brush";
+import type { BodyShape } from "./body-shape";
 import { PRESENCE_THRESHOLD, type PaintLayers } from "./layers";
 import { PainLegend } from "./pain-swatch";
 import { viewLabel } from "./region-labels";
@@ -25,10 +26,12 @@ export interface BodyViewerProps {
   initialView?: CameraView;
   /** Hides the legend when the surrounding screen shows its own. */
   showLegend?: boolean;
+  /** Body shape to display (default figure when omitted). Maps look and measure the same on every shape. */
+  shape?: BodyShape;
 }
 
 /** Read-only body for history playback, comparison, and report capture. Rotation only; it has no draft of its own to alter. */
-export function BodyViewer({ layers, label, handleRef, initialView = "front", showLegend = true }: BodyViewerProps) {
+export function BodyViewer({ layers, label, handleRef, initialView = "front", showLegend = true, shape }: BodyViewerProps) {
   const [handle] = useState(() => new DeferredBodyHandle(layers));
   const [view, setView] = useState<CameraView>(initialView);
   const [viewRequest, setViewRequest] = useState(0);
@@ -46,7 +49,7 @@ export function BodyViewer({ layers, label, handleRef, initialView = "front", sh
   return <section className={`body-workbench ${styles.viewer}`} aria-label={label}>
     {loadError && <div className={styles.loadError} role="alert"><p><strong>This painting can’t be shown.</strong> {loadError}</p></div>}
     <div className={`body-stage ${styles.viewerStage}`} data-mode="rotate">
-      <BodyScene handle={handle} editable={false} mode="rotate" view={view} viewRequest={viewRequest} brush={DEFAULT_BRUSH} label={label} describedBy={helpId} />
+      <BodyScene handle={handle} editable={false} mode="rotate" view={view} viewRequest={viewRequest} brush={DEFAULT_BRUSH} label={label} describedBy={helpId} shape={shape} />
     </div>
     <div className="stage-bottom">
       <div className="view-switch" role="group" aria-label="Camera views">{(["front", "back", "left", "right"] as const).map(next =>

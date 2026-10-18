@@ -59,6 +59,19 @@
 .focus { margin-top: 6px; align-items: center; }
 .focusLabel { font-size: 12px; color: var(--muted); padding: 0 6px 0 8px; }
 
+.shapeToggle { margin-top: 8px; font-size: 13px; border: 1px solid var(--border); background: var(--surface); }
+.shapePanel { margin-top: 10px; padding: 14px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; display: grid; gap: 14px; max-width: 620px; width: 100%; text-align: left; }
+.shapeNote { margin: 0 !important; font-size: 12px; color: var(--muted); }
+.shapeGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px 18px; }
+.shapeSlider { display: grid; gap: 2px; }
+.shapeSlider label { font-size: 13px; font-weight: 600; }
+.shapeSlider input[type="range"] { width: 100%; height: 28px; margin: 0; accent-color: var(--accent); cursor: pointer; }
+.shapeGroup { border: 0; padding: 0; margin: 0; min-width: 0; }
+.shapeGroup legend { font-size: 13px; font-weight: 600; color: var(--muted); padding: 0; margin-bottom: 6px; }
+.shapeMore summary { cursor: pointer; font-size: 13px; color: var(--muted); min-height: 32px; display: flex; align-items: center; }
+.shapeReset { justify-self: start; display: flex; align-items: center; gap: 6px; font-size: 13px; border: 1px solid var(--border); background: var(--surface); }
+.shapeReset:disabled { opacity: .5; cursor: not-allowed; }
+
 .visuallyHidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
 @container body-workbench (max-width: 780px) {

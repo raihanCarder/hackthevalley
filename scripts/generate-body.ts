@@ -1,9 +1,10 @@
-import { rmSync, writeFileSync } from "node:fs";
+import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { BODY_MAP_VERSION, MAP_SIZE, type RegionId } from "../src/domain/contracts";
 import { buildBodyAtlas, regionIdRaster } from "../src/body/atlas";
 import type { BodyLandmark, CameraFocus, FocusTarget, MannequinAsset } from "../src/body/mannequin";
 import { encodeGrayPng } from "../src/body/png";
 import { encodeRegionRaster } from "../src/body/region-raster";
+import { decodeShapePack, type BodyShapePack } from "../src/body/body-shape";
 import { buildCharts, packCharts } from "./body/charts";
 import { buildDiagramView, type DiagramSpec } from "./body/diagram";
 import { add, distance, dot, loadSourceMesh, normalize, scaleVec, SOURCE_SHA256, sub, vertexNormals, type Vec3 } from "./body/mesh";
@@ -11,17 +12,52 @@ import { classifyTriangles } from "./body/regions";
 
 const round = (value: number, places: number) => Number(value.toFixed(places)) || 0;
 
+/**
+ * MakeHuman's default figure is the base mesh plus the averaged young-adult female/male shape (sex 0.5). It is applied
+ * to the displayed positions only: regions and UV charts are computed on the base mesh, so the map contract is the
+ * same for every body shape. Feet stay on the ground.
+ */
+function defaultFigure(raw: Vec3[]): Vec3[] {
+  const pack = decodeShapePack(JSON.parse(readFileSync(`public/body/shape-${BODY_MAP_VERSION}.json`, "utf8")) as BodyShapePack);
+  const positions = raw.map(p => [...p] as Vec3);
+  for (const name of ["female-young", "male-young"]) {
+    const morph = pack.morphs.get(name)!;
+    for (let i = 0; i < morph.indices.length; i++) for (let axis = 0; axis < 3; axis++) positions[morph.indices[i]][axis] += morph.values[i * 3 + axis] * .5;
+  }
+  const floor = Math.min(...positions.map(p => p[1]));
+  return positions.map(([x, y, z]) => [x, y - floor, z]);
+}
+
+/**
+ * Painted-on crop top and shorts (display only). Per vertex: [top zone, shorts zone, height on the base mesh]. The shader
+ * cuts straight hems from the interpolated base height, so they stay smooth and follow the body through every reshape.
+ */
+function garmentZones(mesh: ReturnType<typeof loadSourceMesh>, regions: RegionId[]): [number, number, number][] {
+  const of = mesh.positions.map(() => new Set<RegionId>());
+  mesh.triangles.forEach((triangle, t) => triangle.forEach(v => of[v].add(regions[t])));
+  const torso = ["front-upper-torso", "back-upper-torso", "front-lower-torso", "back-lower-torso"] as RegionId[];
+  return mesh.positions.map(([, y], v) => {
+    const set = [...of[v]];
+    const top = set.length > 0 && set.every(region => torso.includes(region)) ? 1 : 0;
+    const shorts = set.some(region => /pelvis|thigh|lower-torso/.test(region)) && set.every(region => /pelvis|thigh|lower-torso/.test(region)) ? 1 : 0;
+    return [top, shorts, Math.round(y * 1e4) / 1e4];
+  });
+}
+
 export function buildBody() {
   const mesh = loadSourceMesh();
   const regions = classifyTriangles(mesh);
   const charts = buildCharts(mesh.positions, mesh.triangles, regions);
   const { charts: packed, texelsPerMetre } = packCharts(charts, MAP_SIZE);
+  const garment = garmentZones(mesh, regions);
+  // Everything displayed (and every landmark, preset, and diagram) uses MakeHuman's default figure.
+  mesh.positions = defaultFigure(mesh.positions);
   const normals = vertexNormals(mesh.positions, mesh.triangles);
 
   // Render vertices: one per (chart, welded vertex); triangles grouped by chart.
   const asset: MannequinAsset = {
     bodyMapVersion: BODY_MAP_VERSION, mapSize: MAP_SIZE, texelsPerMetre: round(texelsPerMetre, 2),
-    positions: [], normals: [], uvs: [], indices: [], weld: [], charts: [], landmarks: {}, focus: {} as Record<FocusTarget, CameraFocus>,
+    positions: [], normals: [], uvs: [], indices: [], weld: [], garment: [], charts: [], landmarks: {}, focus: {} as Record<FocusTarget, CameraFocus>,
     source: { name: "MakeHuman hm08 base mesh", url: "https://github.com/makehumancommunity/makehuman/blob/3c701a8e52f09e69922e8b598d23be2d7dfc49e3/makehuman/data/3dobjs/base.obj", sha256: SOURCE_SHA256, license: "CC0-1.0" },
   };
   const triangleRegions: RegionId[] = [];
@@ -33,6 +69,7 @@ export function buildBody() {
       asset.weld.push(welded);
       asset.positions.push(...mesh.positions[welded].map(n => round(n, 5)));
       asset.normals.push(...normals[welded].map(n => round(n, 4)));
+      asset.garment.push(...garment[welded]);
       const px = chart.offset[0] + (u - chart.min[0]) * texelsPerMetre, py = chart.offset[1] + (v - chart.min[1]) * texelsPerMetre;
       asset.uvs.push(round(px / MAP_SIZE, 6), round(1 - py / MAP_SIZE, 6));
     }
@@ -80,13 +117,19 @@ export function buildBody() {
     landmark(`${side}-upper-arm`, `${side}-upper-arm`, add(lerp(j(`${s}-shoulder`), j(`${s}-elbow`), .5), [0, 0, .2]), front);
     landmark(`${side}-forearm`, `${side}-forearm`, add(lerp(j(`${s}-elbow`), j(`${s}-hand`), .5), [0, 0, .2]), front);
     landmark(`${side}-hand-back`, `${side}-hand`, add(j(`${s}-hand-2`), [.04 * sign, 0, 0]), [sign, .2, 0]);
-    landmark(`${side}-thumb-tip`, `${side}-thumb`, j(`${s}-finger-1-4`));
-    landmark(`${side}-index-tip`, `${side}-index-finger`, j(`${s}-finger-2-4`));
-    landmark(`${side}-middle-tip`, `${side}-middle-finger`, j(`${s}-finger-3-4`));
-    landmark(`${side}-little-tip`, `${side}-little-finger`, j(`${s}-finger-5-4`));
+    // Digit tips: the vertex of each digit farthest from its knuckle (robust to the default figure's pose).
+    const tip = (name: string, regionId: RegionId, knuckle: Vec3) => {
+      let best = -1, far = -1;
+      for (const v of regionVertices.get(regionId) ?? []) { const d = distance(mesh.positions[v], knuckle); if (d > far) { far = d; best = v; } }
+      landmark(name, regionId, mesh.positions[best]);
+    };
+    tip(`${side}-thumb-tip`, `${side}-thumb`, j(`${s}-finger-1-2`));
+    tip(`${side}-index-tip`, `${side}-index-finger`, j(`${s}-finger-2-1`));
+    tip(`${side}-middle-tip`, `${side}-middle-finger`, j(`${s}-finger-3-1`));
+    tip(`${side}-little-tip`, `${side}-little-finger`, j(`${s}-finger-5-1`));
     landmark(`${side}-foot-top`, `${side}-foot`, add(lerp(j(`${s}-ankle`), j(`${s}-foot-1`), .6), [0, .05, 0]), [0, 1, .3]);
-    landmark(`${side}-big-toe`, `${side}-big-toe`, add(j(`${s}-toe-1-3`), [0, .02, 0]), [0, 1, .3]);
-    landmark(`${side}-little-toe`, `${side}-little-toe`, add(j(`${s}-toe-5-4`), [0, .02, 0]), [0, 1, .3]);
+    tip(`${side}-big-toe`, `${side}-big-toe`, j(`${s}-toe-1-1`));
+    tip(`${side}-little-toe`, `${side}-little-toe`, j(`${s}-toe-5-1`));
     landmark(`${side}-ear`, `${side}-ear`, [.09 * sign, 1.8, 0], [sign, 0, 0]);
     landmark(`${side}-eye`, `${side}-eye`, add(j(`${s}-eye`), [0, 0, .05]), front);
   }
