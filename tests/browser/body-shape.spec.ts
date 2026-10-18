@@ -23,7 +23,7 @@ test("body-shape sliders reshape the figure without changing marks or measuremen
   await paintCalf(page);
   const canvas = page.locator("canvas");
   const before = await canvas.getAttribute("data-observations");
-  await page.getByRole("button", { name: "Adjust body shape" }).click();
+  await page.getByRole("button", { name: "Body", exact: true }).click();
   const panel = page.getByRole("region", { name: "Body shape" });
   await expect(panel).toBeVisible();
   await expect(panel.getByRole("button", { name: "Reset body shape" })).toBeDisabled();
@@ -40,7 +40,7 @@ test("body-shape sliders reshape the figure without changing marks or measuremen
   await page.reload();
   await expect(page.locator(".scene-mount")).toHaveAttribute("data-status", "ready");
   await expect.poll(async () => Number(await canvas.getAttribute("data-body-height"))).toBeLessThan(.95);
-  await page.getByRole("button", { name: "Adjust body shape" }).click();
+  await page.getByRole("button", { name: "Body", exact: true }).click();
   await expect(page.getByRole("region", { name: "Body shape" }).getByLabel("Height", { exact: true })).toHaveValue("0");
   await page.getByRole("button", { name: "Reset body shape" }).click();
   await expect.poll(async () => Number(await canvas.getAttribute("data-body-height"))).toBe(1);

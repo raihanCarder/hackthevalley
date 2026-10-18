@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, FileText, History, NotebookPen, ScanLine, UserRound } from "lucide-react";
+import { Activity, FileText, History, ScanLine, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 
@@ -10,7 +10,6 @@ export function AppNav() {
   const pathname = usePathname();
   const links = [
     { href: "/", label: "Check-in", icon: ScanLine },
-    { href: "/check-in", label: "Check-in details", icon: NotebookPen },
     { href: "/history", label: "History", icon: History },
     { href: "/report", label: "Appointment report", icon: FileText },
   ];
@@ -22,7 +21,7 @@ export function AppNav() {
     </Link>
     <nav aria-label="Main navigation">{links.map(({ href, label, icon: Icon }) =>
       <Button key={href} asChild variant="ghost" className="nav-link">
-        <Link href={href} aria-current={pathname === href ? "page" : undefined}><Icon size={18} strokeWidth={1.7} aria-hidden="true" />{label}</Link>
+        <Link href={href} aria-current={pathname === href || (href === "/" && pathname === "/check-in") ? "page" : undefined}><Icon size={18} strokeWidth={1.7} aria-hidden="true" />{label}</Link>
       </Button>
     )}</nav>
     <Separator className="sidebar-divider" />
