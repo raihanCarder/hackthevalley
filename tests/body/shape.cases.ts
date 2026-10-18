@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { BODY_MAP_VERSION } from "../../src/domain/contracts";
-import { BODY_SHAPE_SLIDERS, DEFAULT_BODY_SHAPE, decodeShapePack, isDefaultShape, normalizeShape, shapeOffsets, type BodyShape, type BodyShapePack } from "../../src/body/body-shape";
+import { BODY_SHAPE_SLIDERS, DEFAULT_BODY_SHAPE, FEMALE_BODY_SHAPE, NEUTRAL_BODY_SHAPE, decodeShapePack, isDefaultShape, isNeutralShape, normalizeShape, shapeOffsets, type BodyShape, type BodyShapePack } from "../../src/body/body-shape";
 import { createMorpher } from "../../src/body/body-morph";
 import { buildBodyAtlas, surfaceHitNear } from "../../src/body/atlas";
 import { PaintEngine } from "../../src/body/paint-engine";
@@ -15,7 +15,8 @@ import { loadSourceMesh } from "../../scripts/body/mesh";
 const raw = JSON.parse(readFileSync(`public/body/shape-${BODY_MAP_VERSION}.json`, "utf8")) as BodyShapePack;
 const pack = decodeShapePack(raw);
 const asset = () => JSON.parse(readFileSync(`public/body/${BODY_MAP_VERSION}.json`, "utf8")) as MannequinAsset;
-const shape = (partial: Partial<BodyShape>): BodyShape => ({ ...DEFAULT_BODY_SHAPE, ...partial });
+// Relative to the asset's own (neutral) figure, which needs no morphing.
+const shape = (partial: Partial<BodyShape>): BodyShape => ({ ...NEUTRAL_BODY_SHAPE, ...partial });
 const morphed = async (partial: Partial<BodyShape>) => {
   const fresh = asset();
   const atlas = buildBodyAtlas(fresh);
@@ -23,11 +24,16 @@ const morphed = async (partial: Partial<BodyShape>) => {
   return { atlas, result, asset: fresh };
 };
 
-test("stored shapes are clamped and completed; the default shape adds no offset", () => {
+test("stored shapes are clamped and completed; sex is female or male; the neutral figure adds no offset", () => {
   assert.deepEqual(normalizeShape(null), DEFAULT_BODY_SHAPE);
+  assert.equal(DEFAULT_BODY_SHAPE.sex, 1, "the default body is male");
+  assert.deepEqual(FEMALE_BODY_SHAPE, { ...DEFAULT_BODY_SHAPE, sex: 0 });
   assert.deepEqual(normalizeShape({ sex: 2, weight: -1, height: "tall", legs: .7 }), { ...DEFAULT_BODY_SHAPE, sex: 1, weight: 0, legs: .7 });
-  assert.ok(isDefaultShape(DEFAULT_BODY_SHAPE) && !isDefaultShape(shape({ muscle: .6 })));
-  assert.ok(shapeOffsets(pack, DEFAULT_BODY_SHAPE).every(value => Math.abs(value) < 1e-9));
+  // Older in-between values snap to the nearer end; the old neutral default goes to male.
+  assert.deepEqual([.2, .49, .5, .8].map(sex => normalizeShape({ sex }).sex), [0, 0, 1, 1]);
+  assert.ok(isDefaultShape(DEFAULT_BODY_SHAPE) && !isDefaultShape(FEMALE_BODY_SHAPE) && !isDefaultShape(shape({ muscle: .6 })));
+  assert.ok(isNeutralShape(NEUTRAL_BODY_SHAPE) && !isNeutralShape(DEFAULT_BODY_SHAPE));
+  assert.ok(shapeOffsets(pack, NEUTRAL_BODY_SHAPE).every(value => Math.abs(value) < 1e-9));
   for (const slider of BODY_SHAPE_SLIDERS) {
     const extreme = shapeOffsets(pack, shape({ [slider]: slider === "age" ? 1 : 0 }));
     assert.ok(extreme.some(value => Math.abs(value) > 1e-3), `${slider} changes the figure`);

@@ -7,9 +7,17 @@ import { base64ToBytes, bytesToBase64 } from "./png";
  */
 export const BODY_SHAPE_SLIDERS = ["sex", "weight", "muscle", "height", "waist", "shoulders", "hips", "legs", "age"] as const;
 export type BodyShapeSlider = (typeof BODY_SHAPE_SLIDERS)[number];
-/** Every slider runs 0–1. 0.5 is the default figure, except age, where 0 is 25 years (the default) and 1 is about 70. */
+/**
+ * Every slider runs 0–1 with 0.5 average, except age, where 0 is 25 years and 1 is about 70, and sex, which is either
+ * 0 (female) or 1 (male).
+ */
 export type BodyShape = Record<BodyShapeSlider, number>;
-export const DEFAULT_BODY_SHAPE: BodyShape = { sex: .5, weight: .5, muscle: .5, height: .5, waist: .5, shoulders: .5, hips: .5, legs: .5, age: 0 };
+/** The figure the body asset is built in (MakeHuman's default person, sex 0.5): it needs no morphing. */
+export const NEUTRAL_BODY_SHAPE: BodyShape = { sex: .5, weight: .5, muscle: .5, height: .5, waist: .5, shoulders: .5, hips: .5, legs: .5, age: 0 };
+/** The body shown until someone chooses a shape. */
+export const DEFAULT_BODY_SHAPE: BodyShape = { ...NEUTRAL_BODY_SHAPE, sex: 1 };
+/** Maya, the synthetic patient, is always shown with this shape. */
+export const FEMALE_BODY_SHAPE: BodyShape = { ...DEFAULT_BODY_SHAPE, sex: 0 };
 
 /** One quantized sparse morph: welded vertex indices and xyz offsets in metres (int16 × scale). */
 export interface EncodedMorph { scale: number; indices: string; values: string }
@@ -64,22 +72,29 @@ export function decodeShapePack(pack: BodyShapePack): DecodedShapePack {
   return { vertexCount: pack.vertexCount, chestCap: pack.chestCap, chest, morphs };
 }
 
-/** Clamps every slider to 0–1 and fills missing ones with defaults (stored preferences may be partial or stale). */
+/**
+ * Clamps every slider to 0–1, snaps sex to female or male (an older in-between value goes to the nearer end, 0.5 to
+ * male), and fills missing sliders with defaults (stored preferences may be partial or stale).
+ */
 export function normalizeShape(value: unknown): BodyShape {
   const input = value && typeof value === "object" ? value as Record<string, unknown> : {};
   return Object.fromEntries(BODY_SHAPE_SLIDERS.map(slider => {
     const raw = input[slider];
-    return [slider, typeof raw === "number" && Number.isFinite(raw) ? Math.min(1, Math.max(0, raw)) : DEFAULT_BODY_SHAPE[slider]];
+    if (typeof raw !== "number" || !Number.isFinite(raw)) return [slider, DEFAULT_BODY_SHAPE[slider]];
+    return [slider, slider === "sex" ? (raw >= .5 ? 1 : 0) : Math.min(1, Math.max(0, raw))];
   })) as BodyShape;
 }
-export const isDefaultShape = (shape: BodyShape) => BODY_SHAPE_SLIDERS.every(slider => Math.abs(shape[slider] - DEFAULT_BODY_SHAPE[slider]) < 1e-6);
+const sameShape = (a: BodyShape, b: BodyShape) => BODY_SHAPE_SLIDERS.every(slider => Math.abs(a[slider] - b[slider]) < 1e-6);
+export const isDefaultShape = (shape: BodyShape) => sameShape(shape, DEFAULT_BODY_SHAPE);
+/** True for the asset's own figure, which needs no morph offsets. */
+export const isNeutralShape = (shape: BodyShape) => sameShape(shape, NEUTRAL_BODY_SHAPE);
 
 /** MakeHuman's split of a 0–1 macro value into min/max target weights (0.5 is average). */
 const low = (value: number) => Math.max(0, 1 - value * 2);
 const high = (value: number) => Math.max(0, value * 2 - 1);
 
 /**
- * Welded-vertex offsets (metres, xyz) of `shape` relative to the default figure, following MakeHuman's macro weights:
+ * Welded-vertex offsets (metres, xyz) of `shape` relative to the neutral figure, following MakeHuman's macro weights:
  * sex blends female/male targets; age blends young/old ethnic-average targets; muscle, weight, and height use the
  * young adult min/max targets of each sex; waist, shoulders, hips, and leg length use their measurement targets.
  */

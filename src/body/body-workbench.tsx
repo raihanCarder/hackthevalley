@@ -13,7 +13,7 @@ import type { SceneStatus } from "./body-scene";
 import { viewLabel } from "./region-labels";
 import { FocusButtons } from "./focus-buttons";
 import { BodyShapePanel } from "./body-shape-panel";
-import { DEFAULT_BODY_SHAPE } from "./body-shape";
+import { FEMALE_BODY_SHAPE } from "./body-shape";
 import { useBodyShapePreference } from "./body-shape-preference";
 import styles from "./body.module.css";
 
@@ -51,7 +51,8 @@ export function BodyWorkbench({ initialLayers, handleRef, onChange, panel, onPan
   const [observations, setObservations] = useState<RegionalObservation[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [preferredShape, setBodyShape] = useBodyShapePreference();
-  const bodyShape = readOnly ? DEFAULT_BODY_SHAPE : preferredShape;
+  // Read-only is Maya's synthetic record, always shown female.
+  const bodyShape = readOnly ? FEMALE_BODY_SHAPE : preferredShape;
   const helpId = `${id}-scene-help`;
   const keyboardHelpId = `${id}-scene-keyboard-help`;
   const shapePanelId = `${id}-body-shape-panel`;

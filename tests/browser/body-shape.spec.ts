@@ -20,8 +20,11 @@ async function paintCalf(page: Page) {
 
 test("body-shape sliders reshape the figure without changing marks or measurements, and persist in this browser", async ({ page }) => {
   await open(page);
-  await paintCalf(page);
   const canvas = page.locator("canvas");
+  // The default body is male, so even the first figure is reshaped from the neutral asset.
+  await expect(canvas).toHaveAttribute("data-body-height", /\d/);
+  const defaultHeight = Number(await canvas.getAttribute("data-body-height"));
+  await paintCalf(page);
   const before = await canvas.getAttribute("data-observations");
   await page.getByRole("button", { name: "Body", exact: true }).click();
   const panel = page.getByRole("region", { name: "Body shape" });
@@ -29,7 +32,12 @@ test("body-shape sliders reshape the figure without changing marks or measuremen
   await expect(panel.getByRole("button", { name: "Reset body shape" })).toBeDisabled();
   await panel.getByLabel("Height", { exact: true }).fill("0");
   await expect.poll(async () => Number(await canvas.getAttribute("data-body-height"))).toBeLessThan(.95);
-  await panel.getByLabel("Sex", { exact: true }).fill("1");
+  const sex = panel.getByLabel("Sex", { exact: true });
+  await expect(sex).toHaveValue("1");
+  // Sex locks to female or male: one step of the slider goes straight from one end to the other.
+  await sex.press("ArrowLeft");
+  await expect(sex).toHaveValue("0");
+  await expect(sex).toHaveAttribute("aria-valuetext", "female");
   await panel.getByLabel("Waist and belly", { exact: true }).fill("0.8");
   await panel.getByText("More options").click();
   await panel.getByLabel("Age", { exact: true }).fill("0.6");
@@ -43,6 +51,7 @@ test("body-shape sliders reshape the figure without changing marks or measuremen
   await page.getByRole("button", { name: "Body", exact: true }).click();
   await expect(page.getByRole("region", { name: "Body shape" }).getByLabel("Height", { exact: true })).toHaveValue("0");
   await page.getByRole("button", { name: "Reset body shape" }).click();
-  await expect.poll(async () => Number(await canvas.getAttribute("data-body-height"))).toBe(1);
+  await expect.poll(async () => Number(await canvas.getAttribute("data-body-height"))).toBe(defaultHeight);
+  await expect(page.getByRole("region", { name: "Body shape" }).getByLabel("Sex", { exact: true })).toHaveValue("1");
   await expect(page.getByRole("button", { name: "Reset body shape" })).toBeDisabled();
 });

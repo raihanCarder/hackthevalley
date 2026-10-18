@@ -24,6 +24,7 @@ import {
 } from "../domain/contracts";
 import { MAYA_ENTRIES, MAYA_PROFILE } from "../demo/maya";
 import { BodyViewer } from "../body/body-viewer";
+import { FEMALE_BODY_SHAPE } from "../body/body-shape";
 import { useBodyShapePreference } from "../body/body-shape-preference";
 import { useJournalProfile } from "../journal/profile-context";
 import { fitRangeToEntries, initialSelection, shiftDate } from "../journal/selection";
@@ -72,9 +73,9 @@ function ProfileHistory({ activeProfileId }: { activeProfileId: "maya" | "visito
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
   const isSynthetic = activeProfileId === "maya";
-  // The visitor's own maps show on their chosen body shape; Maya always uses the default figure.
+  // The visitor's own maps show on their chosen body shape; Maya is always shown female.
   const [preferredShape] = useBodyShapePreference();
-  const viewerShape = isSynthetic ? undefined : preferredShape;
+  const viewerShape = isSynthetic ? FEMALE_BODY_SHAPE : preferredShape;
   const [range, setRange] = useState<DateRange>(initial.range);
   const { from: startDate, to: endDate } = range;
   // Your history starts at your first check-in, unless a link or the range inputs chose the dates.

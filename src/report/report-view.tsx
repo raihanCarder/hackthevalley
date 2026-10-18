@@ -5,6 +5,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays, Printer } from "lucide-react";
 import { PAIN_LABELS, parseLocalDate, type LocalDate } from "@/domain/contracts";
 import { BodyViewer } from "@/body/body-viewer";
+import { FEMALE_BODY_SHAPE } from "@/body/body-shape";
+import { useBodyShapePreference } from "@/body/body-shape-preference";
 import type { BodyCaptures, BodyHandle } from "@/body/body-handle";
 import { PainLegend } from "@/body/pain-swatch";
 import type { PaintLayers } from "@/body/layers";
@@ -48,6 +50,9 @@ function ProfileReport({ profile }: { profile: ReportProfileKey }) {
   const [composite, setComposite] = useState<PaintLayers | null>(null);
   const [captures, setCaptures] = useState<Captures>({ state: "pending" });
   const [summary, setSummary] = useState<Summary>({ state: "factual" });
+  // Same figure as history: your chosen body shape, or female for Maya.
+  const [preferredShape] = useBodyShapePreference();
+  const bodyShape = profile === "maya" ? FEMALE_BODY_SHAPE : preferredShape;
   const [gemini, setGemini] = useState<GeminiStatus>({ state: "unknown" });
   const viewer = useRef<BodyHandle | null>(null);
   const summaryAbort = useRef<AbortController | null>(null);
@@ -211,7 +216,7 @@ function ProfileReport({ profile }: { profile: ReportProfileKey }) {
       </article>}
 
     {composite && <div className={styles.offscreen} aria-hidden="true" inert>
-      <BodyViewer layers={composite} label="Range composite for capture" handleRef={viewer} showLegend={false} />
+      <BodyViewer layers={composite} label="Range composite for capture" handleRef={viewer} showLegend={false} shape={bodyShape} />
     </div>}
   </div>;
 }
