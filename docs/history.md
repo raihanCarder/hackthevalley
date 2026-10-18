@@ -4,7 +4,7 @@ Integrated task 4 implementation.
 
 ## Overview
 
-The history feature powers the second core selling point of the pain journal: **analyzing how pain changes over time**. It provides an interactive timeline scrubber, chronological playback, regional trend visualization, date-to-date comparison, and shared evidence calculation.
+The history feature powers the second core selling point of feel: **analyzing how pain changes over time**. It provides an interactive timeline scrubber, chronological playback, regional trend visualization, date-to-date comparison, and shared evidence calculation.
 
 ## Modules and Responsibilities
 

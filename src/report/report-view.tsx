@@ -206,7 +206,7 @@ function ProfileReport({ profile }: { profile: ReportProfileKey }) {
         </section>
 
         <footer className={styles.disclaimer}>
-          <p>This report describes the patient’s own journal records. It does not provide a diagnosis or treatment advice. Intensity is the patient’s rating from 0 to 10. Map coverage is the share of a region’s body-map area that was marked, not a measure of skin area. Left and right are the patient’s own sides.</p>
+          <p>This feel report describes the patient’s own journal records. It does not provide a diagnosis or treatment advice. Intensity is the patient’s rating from 0 to 10. Map coverage is the share of a region’s body-map area that was marked, not a measure of skin area. Left and right are the patient’s own sides.</p>
         </footer>
       </article>}
 

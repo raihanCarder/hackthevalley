@@ -26,7 +26,7 @@ export function assertSameOrigin(request: Request): void {
   const origin = request.headers.get("origin");
   const expected = expectedOrigin(request);
   if (origin !== expected || request.headers.get("sec-fetch-site") === "cross-site") {
-    throw new JournalError("forbidden", "This change must come from the pain journal page.");
+    throw new JournalError("forbidden", "This change must come from the feel app.");
   }
 }
 export function requestedProfile(url: URL): JournalProfile {

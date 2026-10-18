@@ -31,7 +31,7 @@ export class IndexedDbJournal implements JournalRepository {
         for (const name of ["entries", "summaries"]) db.createObjectStore(name, { keyPath: ["profileId", "localDate"] });
       };
       request.onerror = () => reject(new JournalError("unavailable", "Browser storage could not be opened."));
-      request.onblocked = () => reject(new JournalError("unavailable", "Close other pain journal tabs and retry opening storage."));
+      request.onblocked = () => reject(new JournalError("unavailable", "Close other feel tabs and retry opening storage."));
       request.onsuccess = () => {
         const db = request.result;
         db.onversionchange = () => { db.close(); this.database = undefined; };

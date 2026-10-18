@@ -1,5 +1,7 @@
 # Local journal
 
+The product is named **feel**. Existing `pain-journal-*` storage keys, the historical session cookie, and the Docker Compose project name remain stable for compatibility with saved journals and preferences. Renaming the product does not create a new database, browser store, or Docker volume.
+
 The application has two visible profiles: **You** and **Maya**, selected from the profile icon. The selection follows navigation across the body, history, and report. First use opens You; the device remembers later selections. Browser preferences contain only UI choices, never saved check-ins.
 
 ## Local PostgreSQL

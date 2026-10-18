@@ -13,7 +13,7 @@ export async function GET() {
       postgresql = rows[0]?.ready ? "Ready" : "Migration required";
     } catch { postgresql = "Unavailable"; }
   }
-  return journalResponse({ application: "pain-journal", milestone: "foundation", schemaVersion: SCHEMA_VERSION, bodyMapVersion: BODY_MAP_VERSION,
+  return journalResponse({ application: "feel", milestone: "foundation", schemaVersion: SCHEMA_VERSION, bodyMapVersion: BODY_MAP_VERSION,
     services: { postgresql, gemini: geminiConfig() ? "Configured; not verified" : "Not configured",
       bodyMaps: journalMapServices ? "Connected" : "Pending integration", maya: syntheticJournalSource ? "Connected; synthetic/read-only" : "Pending integration" } });
 }

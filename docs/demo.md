@@ -1,4 +1,4 @@
-# Pain journal demonstration
+# feel demonstration
 
 The demonstration centers on direct 3D painting and change over time. The report is the final supporting step. Maya is synthetic; these are recorded markings, not a diagnosis or prediction.
 

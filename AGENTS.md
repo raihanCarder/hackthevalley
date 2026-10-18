@@ -1,6 +1,6 @@
 # Project Summary
 
-We are completing a workable MVP of a browser-based pain journal. The two main selling points are **painting pain directly on a rotatable 3D body** and **analyzing how that pain changes over time**. The 3D interaction and longitudinal analysis must drive the product, interface, build priorities, and demo. A person paints location, sensation, and intensity, then saves a daily check-in with an optional written note. Playback and regional trends show changes in intensity, coverage, frequency, and newly marked regions. A synthetic patient, Maya, supplies six weeks of sample history. A printable appointment report supports this experience with descriptive observations, without diagnosing or recommending treatment.
+We are completing a workable MVP of **feel**, a browser-based pain journal. The two main selling points are **painting pain directly on a rotatable 3D body** and **analyzing how that pain changes over time**. The 3D interaction and longitudinal analysis must drive the product, interface, build priorities, and demo. A person paints location, sensation, and intensity, then saves a daily check-in with an optional written note. Playback and regional trends show changes in intensity, coverage, frequency, and newly marked regions. A synthetic patient, Maya, supplies six weeks of sample history. A printable appointment report supports this experience with descriptive observations, without diagnosing or recommending treatment.
 
 ## Proposed Tech Stack
 

@@ -12,11 +12,11 @@ test("homepage is readable without journal services or WebGL at all supported wi
   });
   await page.emulateMedia({ reducedMotion: "reduce" });
 
-  for (const [width, height] of [[390, 844], [768, 1024], [1440, 900], [1440, 720], [390, 600]]) {
+  for (const [width, height] of [[390, 844], [768, 1024], [1440, 900], [1440, 720], [390, 600], [768, 768], [1280, 720], [1024, 768]]) {
     await page.setViewportSize({ width, height });
     await page.goto("/home");
-    await expect(page).toHaveTitle("Pain journal | Give your pain a clearer picture");
-    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Give your pain a clearer picture.");
+    await expect(page).toHaveTitle("feel | Map what you feel.");
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Map what you feel.");
     await expect(page.getByRole("main")).toContainText("rotatable 3D body");
     await expect(page.getByRole("complementary", { name: "Explore the sample journal" })).toHaveCount(0);
     await expect(page.getByRole("link", { name: "Open body map", exact: true })).toHaveAttribute("href", "/");
@@ -27,8 +27,13 @@ test("homepage is readable without journal services or WebGL at all supported wi
     const actions = page.getByRole("link", { name: "Explore history", exact: true });
     expect(await actions.evaluate(element => element.getBoundingClientRect().bottom <= innerHeight)).toBe(true);
     const workflow = page.getByRole("region", { name: "From a daily feeling to a picture over time." });
-    if (await workflow.isVisible()) {
-      expect(await workflow.evaluate(element => element.getBoundingClientRect().bottom <= innerHeight)).toBe(true);
+    await expect(workflow).toBeVisible();
+    for (const description of await workflow.locator("dt, dd").all()) {
+      await expect(description).toBeVisible();
+      expect(await description.evaluate(element => {
+        const bounds = element.getBoundingClientRect();
+        return bounds.top >= 0 && bounds.bottom <= innerHeight;
+      }), `Feature description fits at ${width}×${height}`).toBe(true);
     }
     await page.mouse.wheel(0, 600);
     expect(await page.evaluate(() => window.scrollY)).toBe(0);
@@ -48,7 +53,7 @@ test("homepage is readable without journal services or WebGL at all supported wi
     }
     // Return to the first tab stop, then traverse the wordmark, all four links, and profile menu.
     await page.goto("/home");
-    for (const name of ["Skip to content", "Pain journal home", "Home", "Check-in", "History", "Appointment report"]) {
+    for (const name of ["Skip to content", "feel home", "Home", "Check-in", "History", "Appointment report"]) {
       await page.keyboard.press("Tab");
       await expect(page.getByRole("link", { name, exact: true })).toBeFocused();
       await expect.poll(() => page.getByRole("link", { name, exact: true }).evaluate(element => {
@@ -83,7 +88,7 @@ for (const profile of ["You", "Maya"] as const) {
     await expect(selectedProfile).toBeVisible();
     await expect(page.locator(".scene-mount")).toHaveAttribute("data-status", "ready");
     await expect(page.locator("canvas")).toHaveCount(1);
-    await page.getByRole("link", { name: "Pain journal home", exact: true }).click();
+    await page.getByRole("link", { name: "feel home", exact: true }).click();
     await expect(current).toHaveText("Home");
     await expect(page.locator("canvas")).toHaveCount(0);
 
