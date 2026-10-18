@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { ArrowUp, Copy, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -173,13 +172,13 @@ export function CheckInPanel({ storage, repository, editor, connectionError, onB
 
   if (!draft) return <aside className={styles.panel} role="status">Preparing your check-in…</aside>;
   const unavailable = !repository || !editor;
-  const stateText = loading ? "Opening check-in…" : draft.saveState === "saved" ? "Saved check-in" : draft.saveState === "saving" ? "Saving…" : draft.saveState !== "idle" ? "Unsaved draft" : readState === "missing" ? "No check-in recorded" : readState === "error" ? "Check-in unavailable" : "Draft only";
+  const stateText = loading ? "Opening check-in…" : draft.saveState === "error" ? "Not saved · try again" : draft.saveState === "saved" ? "Saved check-in" : draft.saveState === "saving" ? "Saving…" : draft.saveState !== "idle" ? "Unsaved draft" : readState === "missing" ? "No check-in recorded" : readState === "error" ? "Check-in unavailable" : "Draft only";
   return <aside className={styles.panel} aria-label="Daily check-in">
     <div className={styles.panelHeader}>
     <div className={styles.dateField}><label htmlFor="check-in-date">Check-in date</label>
       <Input id="check-in-date" type="date" value={draft.localDate} disabled={busy} onChange={event => void changeDate(event.target.value)} />
     </div>
-    <Badge variant="outline" className={styles.draftStatus} role="status" aria-live="polite">{stateText}</Badge>
+    <Badge variant="outline" className={styles.draftStatus} role="status" aria-live="polite" title={draft.error ?? message ?? connectionError ?? undefined}>{stateText}</Badge>
     <div className={styles.mapActions}>
       <Button variant="ghost" type="button" disabled={unavailable || busy || loading} onClick={() => void prepareMap("previous")}><Copy size={14} aria-hidden="true" />Copy previous map</Button>
       <Button variant="ghost" type="button" disabled={unavailable || busy || loading} onClick={() => void prepareMap("empty")}><RotateCcw size={14} aria-hidden="true" />Start with an empty map</Button>
@@ -196,11 +195,5 @@ export function CheckInPanel({ storage, repository, editor, connectionError, onB
       <Button className={styles.save} type="button" disabled={unavailable || busy || loading || readState === "error"} onClick={() => void save()}>{draft.saveState === "error" ? "Retry saving check-in" : draft.saveState === "saving" ? "Saving check-in…" : "Save check-in"}<ArrowUp size={16} aria-hidden="true" /></Button>
     </div>
     </div>
-    {(draft.error || message || connectionError) && <p className={styles.error} role="alert">{draft.error ?? message ?? connectionError}</p>}
-    {draft.saveState === "saved" && <Link className="text-link" href={`/history?profile=visitor&date=${draft.localDate}`}>View history</Link>}
-    {readState === "error" && <Button variant="ghost" type="button" disabled={busy || loading} onClick={() => void selectDate(draft.localDate)}>Retry opening check-in</Button>}
-    {unavailable && <p className={styles.explanation}>Saving body maps is not available yet. Your note stays here while this page is open.</p>}
-    <p className={styles.explanation}>An empty map is recorded only when you save it. Days you skip stay unrecorded.</p>
-    <p className={styles.privacy}>Notes are not sent to an AI service when you save a check-in.</p>
   </aside>;
 }

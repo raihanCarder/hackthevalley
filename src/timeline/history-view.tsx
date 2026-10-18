@@ -26,10 +26,10 @@ import { MAYA_ENTRIES, MAYA_PROFILE } from "../demo/maya";
 import { BodyViewer } from "../body/body-viewer";
 import { useBodyShapePreference } from "../body/body-shape-preference";
 import { useJournalProfile } from "../journal/profile-context";
-import { initialSelection } from "../journal/selection";
+import { fitRangeToEntries, initialSelection, shiftDate } from "../journal/selection";
 import { openVisitorJournal, closeJournal } from "../journal/client-repository";
 import { syntheticJournalSource } from "../journal/integrations";
-import { validateRange, type EntrySummary, type JournalRepository, type DateRange } from "../journal/repository";
+import { MAX_LIST_DAYS, validateRange, type EntrySummary, type JournalRepository, type DateRange } from "../journal/repository";
 import { HistoryMapLoader, type LoadedMap } from "./map-loader";
 import { MapComparison } from "./map-comparison";
 import {
@@ -77,13 +77,23 @@ function ProfileHistory({ activeProfileId }: { activeProfileId: "maya" | "visito
   const viewerShape = isSynthetic ? undefined : preferredShape;
   const [range, setRange] = useState<DateRange>(initial.range);
   const { from: startDate, to: endDate } = range;
+  // Your history starts at your first check-in, unless a link or the range inputs chose the dates.
+  const [fitRange, setFitRange] = useState(!isSynthetic && !initial.linkedRange);
+  const fitWindow = useMemo(() => ({ from: shiftDate(initial.range.to, -(MAX_LIST_DAYS - 1)), to: initial.range.to }), [initial]);
+  const listRange = fitRange ? fitWindow : range;
+  const rangeRef = useRef(range);
+  useEffect(() => { rangeRef.current = range; }, [range]);
+
+  // Comparison selection
+  const [compareDateA, setCompareDateA] = useState<LocalDate>(initial.range.from);
+  const [compareDateB, setCompareDateB] = useState<LocalDate>(initial.range.to);
   const [currentDate, setCurrentDate] = useState<LocalDate>(initial.date);
   const allDates = useMemo(() => listCalendarDates(startDate, endDate), [startDate, endDate]);
   const entries = useMemo(() => (isSynthetic ? MAYA_ENTRIES : visitorEntries).filter(e => e.localDate >= startDate && e.localDate <= endDate), [isSynthetic, visitorEntries, startDate, endDate]);
   const [viewMode, setViewMode] = useState<"diagram" | "3d">("3d");
   const loader = useMemo(() => isSynthetic ? new HistoryMapLoader(syntheticJournalSource, "maya")
     : repository ? new HistoryMapLoader(repository, "visitor") : null, [isSynthetic, repository]);
-  const [loaded, setLoaded] = useState<{ loader: HistoryMapLoader; date: LocalDate; value: LoadedMap } | null>(null);
+  const [loaded, setLoaded] = useState<{ loader: HistoryMapLoader; date: LocalDate; mapDate: LocalDate; value: LoadedMap } | null>(null);
   const [mapError, setMapError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -94,25 +104,45 @@ function ProfileHistory({ activeProfileId }: { activeProfileId: "maya" | "visito
     openVisitorJournal().then(async source => {
       opened = source;
       if (abort.signal.aborted) { closeJournal(source); return; }
-      const summaries = await source.list("visitor", range, { signal: abort.signal });
-      if (!abort.signal.aborted) { setVisitorEntries(summaries); setRepository(source); }
+      const summaries = await source.list("visitor", listRange, { signal: abort.signal });
+      if (abort.signal.aborted) return;
+      if (fitRange) {
+        const fitted = fitRangeToEntries(summaries, initial.date, listRange.to);
+        if (fitted.from !== rangeRef.current.from || fitted.to !== rangeRef.current.to) {
+          setRange(fitted); setCompareDateA(fitted.from); setCompareDateB(fitted.to);
+        }
+      }
+      setVisitorEntries(summaries); setRepository(source);
     }).catch(error => { if (!abort.signal.aborted) setHistoryError((error as Error).message); })
       .finally(() => { if (!abort.signal.aborted) setHistoryLoading(false); });
     return () => { abort.abort(); closeJournal(opened); };
-  }, [isSynthetic, range, reloadKey]);
+  }, [isSynthetic, listRange, fitRange, initial, reloadKey]);
+
+  // A missed day shows the most recent earlier check-in, labeled as carried over. Trends, comparisons,
+  // and the report still count only real check-ins.
+  const recordedDates = useMemo(() => (isSynthetic ? MAYA_ENTRIES : visitorEntries).map(e => e.localDate).sort(), [isSynthetic, visitorEntries]);
+  const mapDateFor = useCallback((date: LocalDate) => {
+    let source = date;
+    for (const recorded of recordedDates) {
+      if (recorded > date) break;
+      source = recorded;
+    }
+    return source;
+  }, [recordedDates]);
 
   useEffect(() => {
     if (!loader) return;
     const abort = new AbortController();
     setMapError(null);
-    loader.load(currentDate, abort.signal).then(value => {
-      if (!abort.signal.aborted) setLoaded({ loader, date: currentDate, value });
+    const mapDate = mapDateFor(currentDate);
+    loader.load(mapDate, abort.signal).then(value => {
+      if (!abort.signal.aborted) setLoaded({ loader, date: currentDate, mapDate, value });
     }).catch(error => { if (!abort.signal.aborted) setMapError((error as Error).message); });
     // Decode only a small window ahead. Date/profile/range changes abort outdated reads.
     const index = allDates.indexOf(currentDate);
-    for (const date of allDates.slice(index + 1, index + 3)) void loader.load(date, abort.signal).catch(() => {});
+    for (const date of allDates.slice(index + 1, index + 3)) void loader.load(mapDateFor(date), abort.signal).catch(() => {});
     return () => abort.abort();
-  }, [loader, currentDate, allDates]);
+  }, [loader, currentDate, allDates, mapDateFor]);
   // The last loaded day stays on screen until the next one arrives, so playback never blanks or remounts the body.
   const shown = loaded?.loader === loader ? loaded : null;
   const shownDate = shown?.date ?? currentDate;
@@ -129,10 +159,6 @@ function ProfileHistory({ activeProfileId }: { activeProfileId: "maya" | "visito
   const [selectedRegion, setSelectedRegion] = useState<RegionId>("back-lower-torso");
   const [selectedPainType, setSelectedPainType] = useState<PainType>("aching");
 
-  // Comparison selection
-  const [compareDateA, setCompareDateA] = useState<LocalDate>(initial.range.from);
-  const [compareDateB, setCompareDateB] = useState<LocalDate>(initial.range.to);
-
   // Map of entries by date for fast lookup
   const entryMap = useMemo(() => {
     const map = new Map<LocalDate, EntrySummary>();
@@ -142,9 +168,11 @@ function ProfileHistory({ activeProfileId }: { activeProfileId: "maya" | "visito
     return map;
   }, [entries]);
 
-  // Entry for the day on screen (null for an unrecorded gap)
+  // Entry for the day on screen: its own check-in, the carried-over one, or null before the first check-in
   const currentEntry = shown?.value.entry ?? null;
-  const currentSummary = entryMap.get(currentDate) ?? null;
+  const carriedFrom = shown && currentEntry && shown.mapDate !== shown.date ? shown.mapDate : null;
+  const diagramSourceDate = mapDateFor(currentDate);
+  const currentSummary = (isSynthetic ? MAYA_ENTRIES : visitorEntries).find(e => e.localDate === diagramSourceDate) ?? null;
   const visitorUnavailable = !isSynthetic && (!repository || historyLoading || Boolean(historyError));
 
   // Initialize and tear down playback controller
@@ -219,6 +247,7 @@ function ProfileHistory({ activeProfileId }: { activeProfileId: "maya" | "visito
   function changeRange(next: DateRange) {
     try {
       validateRange(next);
+      setFitRange(false);
       playbackRef.current?.pause(); setIsPlaying(false);
       setRange(next);
       setCurrentDate(date => date < next.from ? next.from : date > next.to ? next.to : date);
@@ -250,14 +279,6 @@ function ProfileHistory({ activeProfileId }: { activeProfileId: "maya" | "visito
 
   return (
     <div className={styles.timelineContainer} data-history-root="" data-selected-date={currentDate}>
-      <section className={styles.profileBar} aria-label="Active profile and status">
-        <div><strong>{isSynthetic ? "Maya" : "You"}</strong><p className={styles.syntheticNotice}>{isSynthetic
-          ? "Maya · Synthetic sample · Six weeks of check-ins."
-          : "Your saved check-ins from PostgreSQL on this device."}</p></div>
-        <Link className="text-link" href={`/report?${new URLSearchParams({ profile: activeProfileId, from: startDate, to: endDate })}`}>Generate report</Link>
-        {!isSynthetic && <button type="button" disabled={historyLoading} onClick={() => setReloadKey(value => value + 1)}>Refresh history</button>}
-      </section>
-
       {historyError && <p role="alert">{historyError}</p>}
       {historyLoading && <p role="status">Loading saved history…</p>}
       <div className={`${styles.selectorGrid} ${styles.rangeControls}`} role="group" aria-label="Analysis date range">
@@ -270,6 +291,7 @@ function ProfileHistory({ activeProfileId }: { activeProfileId: "maya" | "visito
           <div>
             <span className={styles.dateCounter}>
               Day {currentIndex + 1} of {allDates.length} · {currentDate}
+              {isSynthetic && <span className={styles.syntheticTag}>Maya · Synthetic sample</span>}
             </span>
             <div className={styles.currentDateLabel}>{formatDisplayDate(currentDate)}</div>
           </div>
@@ -416,347 +438,352 @@ function ProfileHistory({ activeProfileId }: { activeProfileId: "maya" | "visito
                   : <>
                     {/* One viewer for every day: unrecorded gaps show a blank, dimmed body under the banner. */}
                     <div className={styles.stageBody} data-gap={currentEntry ? undefined : ""}>
-                      <BodyViewer layers={shown.value.layers} label={currentEntry ? `Saved map for ${shownDate}` : `No map recorded for ${shownDate}`} shape={viewerShape} />
+                      <BodyViewer layers={shown.value.layers} label={carriedFrom ? `Map carried over from ${carriedFrom} to ${shownDate}` : currentEntry ? `Saved map for ${shownDate}` : `No map recorded for ${shownDate}`} shape={viewerShape} />
                     </div>
+                    {carriedFrom && <p className={`${styles.carriedBanner} ${styles.stageBanner}`}>No check-in on this day. Showing the map carried over from {formatDisplayDate(carriedFrom)}.</p>}
                     {!currentEntry && <p className={`${styles.missingStateBanner} ${styles.stageBanner}`}>No check-in recorded for this date. No map is attributed to this day.</p>}
                   </>}
               </div>
             )}
           </div>
-
-          {/* Active Date Card: Note & Regional Observations */}
-          <div className={styles.activeDayCard} aria-busy={switchingDay}>
-            <div className={styles.activeDayHeader}>
-              <h2 className={styles.activeDayTitle}>Check-in for {formatDisplayDate(shownDate)}</h2>
-              {visitorUnavailable ? <span>History unavailable</span> : !shown ? <span role="status">Opening saved check-in…</span> : currentEntry ? (
-                currentEntry.observations.length === 0 ? (
-                  <span style={{ fontSize: "12px", color: "var(--muted)" }}>Explicitly empty check-in</span>
-                ) : (
-                  <span style={{ fontSize: "12px", color: "var(--primary)", fontWeight: 600 }}>
-                    {currentEntry.observations.length} area{currentEntry.observations.length > 1 ? "s" : ""} marked
-                  </span>
-                )
-              ) : (
-                <span style={{ fontSize: "12px", color: "var(--error)", fontWeight: 600 }}>
-                  Unrecorded gap
-                </span>
-              )}
-            </div>
-
-            {visitorUnavailable ? <p>Saved entries must be loaded before this date can be inspected.</p> : !shown ? <p role="status">Loading the saved map and note…</p> : currentEntry ? (
-              <>
-                {/* Note */}
-                {currentEntry.note && (
-                  <div className={styles.noteBox}>
-                    <div className={styles.noteLabel}>Patient Journal Note</div>
-                    <div>{currentEntry.note}</div>
-                  </div>
-                )}
-
-                {/* Regional Observations Badges */}
-                {currentEntry.observations.length > 0 ? (
-                  <div className={styles.observationTags}>
-                    {currentEntry.observations.map(obs => (
-                      <button type="button"
-                        key={`${obs.regionId}-${obs.painType}`}
-                        className={styles.observationTag}
-                        style={{ cursor: "pointer" }}
-                        onClick={() => {
-                          setSelectedRegion(obs.regionId);
-                          setSelectedPainType(obs.painType);
-                          setActiveTab("trends");
-                        }}
-                      >
-                        <span
-                          className={styles.observationTagDot}
-                          style={{ background: PAIN_COLORS[obs.painType] }}
-                        />
-                        <span>
-                          <strong>{formatRegionName(obs.regionId)}</strong>: {PAIN_LABELS[obs.painType]} · Peak{" "}
-                          {obs.peakIntensity.toFixed(1)}/10 ({(obs.mapCoverage * 100).toFixed(0)}% map coverage)
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  <div className={styles.emptyStateBanner}>
-                    Saved with nothing marked on this calendar day.
-                  </div>
-                )}
-              </>
-            ) : (
-              <div className={styles.missingStateBanner}>
-                <strong>No check-in recorded for this date.</strong>
-                <p style={{ margin: "4px 0 0", fontSize: "13px" }}>
-                  This calendar day is an unrecorded gap. It is not assumed to be pain-free.
-                </p>
-              </div>
-            )}
-
-            {/* Visitor zero entries state */}
-            {activeProfileId === "visitor" && !historyLoading && !historyError && visitorEntries.length === 0 && (
-              <div style={{ textAlign: "center", paddingTop: 8 }}>
-                <p style={{ fontSize: "13px", color: "var(--muted)", margin: "0 0 12px" }}>
-                  You have not saved any check-ins in this range yet.
-                </p>
-                <Link
-                  href="/"
-                  className={styles.controlButton}
-                  style={{ textDecoration: "none", display: "inline-flex" }}
-                >
-                  Go to 3D check-in to paint pain
-                </Link>
-              </div>
-            )}
-          </div>
         </div>
 
-        {/* Right Column: Analysis Rail (Trends & Comparison) */}
-        <div className={styles.analysisColumn} hidden={visitorUnavailable}>
-          {/* Tab Bar */}
-          <div className={styles.tabBar} role="tablist">
-            <button
-              type="button"
-              role="tab"
-              className={styles.tabButton}
-              aria-selected={activeTab === "trends"}
-              onClick={() => setActiveTab("trends")}
-            >
-              Regional Trends
-            </button>
-            <button
-              type="button"
-              role="tab"
-              className={styles.tabButton}
-              aria-selected={activeTab === "comparison"}
-              onClick={() => setActiveTab("comparison")}
-            >
-              Compare Dates
-            </button>
-          </div>
-
-          {/* TAB 1: Regional Trends */}
-          {activeTab === "trends" && (
-            <div className={styles.analysisPanel} role="tabpanel">
-              {/* Selectors */}
-              <div className={styles.selectorGrid}>
-                <div className={styles.fieldGroup}>
-                  <label htmlFor="trend-region-select" className={styles.fieldLabel}>
-                    Body Region
-                  </label>
-                  <select
-                    id="trend-region-select"
-                    value={selectedRegion}
-                    onChange={e => setSelectedRegion(e.target.value as RegionId)}
-                    className={styles.selectInput}
-                  >
-                    {REGION_IDS.map(r => (
-                      <option key={r} value={r}>
-                        {formatRegionName(r)}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className={styles.fieldGroup}>
-                  <label htmlFor="trend-pain-select" className={styles.fieldLabel}>
-                    Sensation Type
-                  </label>
-                  <select
-                    id="trend-pain-select"
-                    value={selectedPainType}
-                    onChange={e => setSelectedPainType(e.target.value as PainType)}
-                    className={styles.selectInput}
-                  >
-                    {PAIN_TYPES.map(t => (
-                      <option key={t} value={t}>
-                        {PAIN_LABELS[t]}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Summary Metric Cards */}
-              <div className={styles.statGrid}>
-                <div className={styles.statCard}>
-                  <div className={styles.statValue}>
-                    {trendSummary.presentDays} / {trendSummary.recordedDays}
-                  </div>
-                  <div className={styles.statLabel}>
-                    Recorded-Day Frequency ({(trendSummary.frequency * 100).toFixed(1)}%)
-                  </div>
-                </div>
-
-                <div className={styles.statCard}>
-                  <div className={styles.statValue}>{trendSummary.maxPeakIntensity} / 10</div>
-                  <div className={styles.statLabel}>Highest Peak Intensity</div>
-                </div>
-
-                <div className={styles.statCard}>
-                  <div className={styles.statValue}>
-                    {trendSummary.firstPresentDate ? trendSummary.firstPresentDate.slice(5) : "None"}
-                  </div>
-                  <div className={styles.statLabel}>First Recorded Presence</div>
-                </div>
-
-                <div className={styles.statCard}>
-                  <div className={styles.statValue}>
-                    {(trendSummary.maxMapCoverage * 100).toFixed(0)}%
-                  </div>
-                  <div className={styles.statLabel}>Max Map Coverage</div>
-                </div>
-              </div>
-
-              <p>Last recorded presence: {trendSummary.lastPresentDate ?? "None"}</p>
-              {/* Interactive Trend SVG Chart */}
-              <TrendChart
-                trend={trendSummary}
-                activeDate={currentDate}
-                onSelectDate={date => handleSeek(date as LocalDate)}
-              />
-
-              <p className={styles.chartNote}>
-                <strong>Measurement guide:</strong> Peak intensity (0–10) reflects perceived severity, while
-                map coverage measures the proportion of marked surface area in this region. Missing dates
-                appear as gaps and do not skew frequency counts.
-              </p>
+        {/* Right Column: Analysis Rail, then the check-in for the day on screen */}
+        <div className={styles.sideColumn}>
+          <div className={styles.analysisColumn} hidden={visitorUnavailable}>
+            {/* Tab Bar */}
+            <div className={styles.tabBar} role="tablist">
+              <button
+                type="button"
+                role="tab"
+                className={styles.tabButton}
+                aria-selected={activeTab === "trends"}
+                onClick={() => setActiveTab("trends")}
+              >
+                Regional Trends
+              </button>
+              <button
+                type="button"
+                role="tab"
+                className={styles.tabButton}
+                aria-selected={activeTab === "comparison"}
+                onClick={() => setActiveTab("comparison")}
+              >
+                Compare Dates
+              </button>
             </div>
-          )}
 
-          {/* TAB 2: Date Comparison */}
-          {activeTab === "comparison" && (
-            <div className={styles.analysisPanel} role="tabpanel">
-              <div className={styles.compareDateRow}>
-                <div className={styles.fieldGroup}>
-                  <label htmlFor="compare-date-a" className={styles.fieldLabel}>
-                    Earlier Date (A)
-                  </label>
-                  <select
-                    id="compare-date-a"
-                    value={compareDateA}
-                    onChange={e => setCompareDateA(e.target.value as LocalDate)}
-                    className={styles.selectInput}
-                  >
-                    {allDates.map(d => (
-                      <option key={`a-${d}`} value={d} disabled={d >= compareDateB}>
-                        {d} ({formatDisplayDate(d).slice(0, 3)})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className={styles.fieldGroup}>
-                  <label htmlFor="compare-date-b" className={styles.fieldLabel}>
-                    Later Date (B)
-                  </label>
-                  <select
-                    id="compare-date-b"
-                    value={compareDateB}
-                    onChange={e => setCompareDateB(e.target.value as LocalDate)}
-                    className={styles.selectInput}
-                  >
-                    {allDates.map(d => (
-                      <option key={`b-${d}`} value={d} disabled={d <= compareDateA}>
-                        {d} ({formatDisplayDate(d).slice(0, 3)})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Quick Presets for Demo */}
-              {activeProfileId === "maya" && (
-                <div className={styles.quickCompareRow}>
-                  <span style={{ fontSize: "12px", color: "var(--muted)", alignSelf: "center" }}>
-                    Presets:
-                  </span>
-                  <button
-                    type="button"
-                    className={styles.quickCompareButton}
-                    onClick={() => {
-                      setCompareDateA("2026-10-02" as LocalDate);
-                      setCompareDateB("2026-10-03" as LocalDate);
-                    }}
-                  >
-                    Thigh Onset (Oct 2 vs Oct 3)
-                  </button>
-                  <button
-                    type="button"
-                    className={styles.quickCompareButton}
-                    onClick={() => {
-                      setCompareDateA("2026-10-03" as LocalDate);
-                      setCompareDateB("2026-10-10" as LocalDate);
-                    }}
-                  >
-                    Calf Spread (Oct 3 vs Oct 10)
-                  </button>
-                  <button
-                    type="button"
-                    className={styles.quickCompareButton}
-                    onClick={() => {
-                      setCompareDateA("2026-09-06" as LocalDate);
-                      setCompareDateB("2026-10-17" as LocalDate);
-                    }}
-                  >
-                    Full 6 Weeks (Sept 6 vs Oct 17)
-                  </button>
-                </div>
-              )}
-
-              <MapComparison loader={loader} earlier={compareDateA} later={compareDateB} shape={viewerShape} />
-              {/* Comparison Observations */}
-              <div className={styles.changesSummaryList} hidden={!entryMap.has(compareDateA) || !entryMap.has(compareDateB)}>
-                {/* Newly marked areas */}
-                {comparisonResult.newlyMarked.length > 0 && (
-                  <div className={styles.newlyMarkedBox}>
-                    <h3 className={styles.changeBoxTitle}>
-                      Newly Marked Pain Regions on {compareDateB}
-                    </h3>
-                    <div className={styles.observationTags}>
-                      {comparisonResult.newlyMarked.map(item => (
-                        <div key={`${item.regionId}-${item.painType}`} className={styles.observationTag}>
-                          <span
-                            className={styles.observationTagDot}
-                            style={{ background: PAIN_COLORS[item.painType] }}
-                          />
-                          <span>
-                            <strong>{formatRegionName(item.regionId)}</strong>: {PAIN_LABELS[item.painType]}{" "}
-                            (Peak {item.laterPeak}/10, {(item.laterCoverage * 100).toFixed(0)}% coverage)
-                          </span>
-                        </div>
+            {/* TAB 1: Regional Trends */}
+            {activeTab === "trends" && (
+              <div className={styles.analysisPanel} role="tabpanel">
+                {/* Selectors */}
+                <div className={styles.selectorGrid}>
+                  <div className={styles.fieldGroup}>
+                    <label htmlFor="trend-region-select" className={styles.fieldLabel}>
+                      Body Region
+                    </label>
+                    <select
+                      id="trend-region-select"
+                      value={selectedRegion}
+                      onChange={e => setSelectedRegion(e.target.value as RegionId)}
+                      className={styles.selectInput}
+                    >
+                      {REGION_IDS.map(r => (
+                        <option key={r} value={r}>
+                          {formatRegionName(r)}
+                        </option>
                       ))}
+                    </select>
+                  </div>
+
+                  <div className={styles.fieldGroup}>
+                    <label htmlFor="trend-pain-select" className={styles.fieldLabel}>
+                      Sensation Type
+                    </label>
+                    <select
+                      id="trend-pain-select"
+                      value={selectedPainType}
+                      onChange={e => setSelectedPainType(e.target.value as PainType)}
+                      className={styles.selectInput}
+                    >
+                      {PAIN_TYPES.map(t => (
+                        <option key={t} value={t}>
+                          {PAIN_LABELS[t]}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Summary Metric Cards */}
+                <div className={styles.statGrid}>
+                  <div className={styles.statCard}>
+                    <div className={styles.statValue}>
+                      {trendSummary.presentDays} / {trendSummary.recordedDays}
                     </div>
+                    <div className={styles.statLabel}>
+                      Recorded-Day Frequency ({(trendSummary.frequency * 100).toFixed(1)}%)
+                    </div>
+                  </div>
+
+                  <div className={styles.statCard}>
+                    <div className={styles.statValue}>{trendSummary.maxPeakIntensity} / 10</div>
+                    <div className={styles.statLabel}>Highest Peak Intensity</div>
+                  </div>
+
+                  <div className={styles.statCard}>
+                    <div className={styles.statValue}>
+                      {trendSummary.firstPresentDate ? trendSummary.firstPresentDate.slice(5) : "None"}
+                    </div>
+                    <div className={styles.statLabel}>First Recorded Presence</div>
+                  </div>
+
+                  <div className={styles.statCard}>
+                    <div className={styles.statValue}>
+                      {(trendSummary.maxMapCoverage * 100).toFixed(0)}%
+                    </div>
+                    <div className={styles.statLabel}>Max Map Coverage</div>
+                  </div>
+                </div>
+
+                <p>Last recorded presence: {trendSummary.lastPresentDate ?? "None"}</p>
+                {/* Interactive Trend SVG Chart */}
+                <TrendChart
+                  trend={trendSummary}
+                  activeDate={currentDate}
+                  onSelectDate={date => handleSeek(date as LocalDate)}
+                />
+
+                <p className={styles.chartNote}>
+                  <strong>Measurement guide:</strong> Peak intensity (0–10) reflects perceived severity, while
+                  map coverage measures the proportion of marked surface area in this region. Missing dates
+                  appear as gaps and do not skew frequency counts.
+                </p>
+              </div>
+            )}
+
+            {/* TAB 2: Date Comparison */}
+            {activeTab === "comparison" && (
+              <div className={styles.analysisPanel} role="tabpanel">
+                <div className={styles.compareDateRow}>
+                  <div className={styles.fieldGroup}>
+                    <label htmlFor="compare-date-a" className={styles.fieldLabel}>
+                      Earlier Date (A)
+                    </label>
+                    <select
+                      id="compare-date-a"
+                      value={compareDateA}
+                      onChange={e => setCompareDateA(e.target.value as LocalDate)}
+                      className={styles.selectInput}
+                    >
+                      {allDates.map(d => (
+                        <option key={`a-${d}`} value={d} disabled={d >= compareDateB}>
+                          {d} ({formatDisplayDate(d).slice(0, 3)})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className={styles.fieldGroup}>
+                    <label htmlFor="compare-date-b" className={styles.fieldLabel}>
+                      Later Date (B)
+                    </label>
+                    <select
+                      id="compare-date-b"
+                      value={compareDateB}
+                      onChange={e => setCompareDateB(e.target.value as LocalDate)}
+                      className={styles.selectInput}
+                    >
+                      {allDates.map(d => (
+                        <option key={`b-${d}`} value={d} disabled={d <= compareDateA}>
+                          {d} ({formatDisplayDate(d).slice(0, 3)})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Quick Presets for Demo */}
+                {activeProfileId === "maya" && (
+                  <div className={styles.quickCompareRow}>
+                    <span style={{ fontSize: "12px", color: "var(--muted)", alignSelf: "center" }}>
+                      Presets:
+                    </span>
+                    <button
+                      type="button"
+                      className={styles.quickCompareButton}
+                      onClick={() => {
+                        setCompareDateA("2026-10-02" as LocalDate);
+                        setCompareDateB("2026-10-03" as LocalDate);
+                      }}
+                    >
+                      Thigh Onset (Oct 2 vs Oct 3)
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.quickCompareButton}
+                      onClick={() => {
+                        setCompareDateA("2026-10-03" as LocalDate);
+                        setCompareDateB("2026-10-10" as LocalDate);
+                      }}
+                    >
+                      Calf Spread (Oct 3 vs Oct 10)
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.quickCompareButton}
+                      onClick={() => {
+                        setCompareDateA("2026-09-06" as LocalDate);
+                        setCompareDateB("2026-10-17" as LocalDate);
+                      }}
+                    >
+                      Full 6 Weeks (Sept 6 vs Oct 17)
+                    </button>
                   </div>
                 )}
 
-                {/* Descriptive observation sentences */}
-                <div>
-                  <h3 style={{ fontSize: "13px", fontWeight: 700, margin: "0 0 8px", color: "var(--foreground)" }}>
-                    Descriptive Observations
-                  </h3>
-                  {comparisonResult.descriptiveObservations.length > 0 ? (
-                    <ul className={styles.observationSentenceList}>
-                      {comparisonResult.descriptiveObservations.map((obs, i) => (
-                        <li key={i} className={styles.observationSentenceItem}>
-                          {obs}
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p style={{ fontSize: "13px", color: "var(--muted)", margin: 0 }}>
-                      No regional sensation changes recorded between {compareDateA} and {compareDateB}.
-                    </p>
+                <MapComparison loader={loader} earlier={compareDateA} later={compareDateB} shape={viewerShape} />
+                {/* Comparison Observations */}
+                <div className={styles.changesSummaryList} hidden={!entryMap.has(compareDateA) || !entryMap.has(compareDateB)}>
+                  {/* Newly marked areas */}
+                  {comparisonResult.newlyMarked.length > 0 && (
+                    <div className={styles.newlyMarkedBox}>
+                      <h3 className={styles.changeBoxTitle}>
+                        Newly Marked Pain Regions on {compareDateB}
+                      </h3>
+                      <div className={styles.observationTags}>
+                        {comparisonResult.newlyMarked.map(item => (
+                          <div key={`${item.regionId}-${item.painType}`} className={styles.observationTag}>
+                            <span
+                              className={styles.observationTagDot}
+                              style={{ background: PAIN_COLORS[item.painType] }}
+                            />
+                            <span>
+                              <strong>{formatRegionName(item.regionId)}</strong>: {PAIN_LABELS[item.painType]}{" "}
+                              (Peak {item.laterPeak}/10, {(item.laterCoverage * 100).toFixed(0)}% coverage)
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   )}
-                </div>
 
-                <p className={styles.chartNote} style={{ marginTop: 8 }}>
-                  <strong>Disclaimer:</strong> Differences reflect recorded markings only and do not constitute
-                  a clinical progression or diagnosis.
-                </p>
+                  {/* Descriptive observation sentences */}
+                  <div>
+                    <h3 style={{ fontSize: "13px", fontWeight: 700, margin: "0 0 8px", color: "var(--foreground)" }}>
+                      Descriptive Observations
+                    </h3>
+                    {comparisonResult.descriptiveObservations.length > 0 ? (
+                      <ul className={styles.observationSentenceList}>
+                        {comparisonResult.descriptiveObservations.map((obs, i) => (
+                          <li key={i} className={styles.observationSentenceItem}>
+                            {obs}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p style={{ fontSize: "13px", color: "var(--muted)", margin: 0 }}>
+                        No regional sensation changes recorded between {compareDateA} and {compareDateB}.
+                      </p>
+                    )}
+                  </div>
+
+                  <p className={styles.chartNote} style={{ marginTop: 8 }}>
+                    <strong>Disclaimer:</strong> Differences reflect recorded markings only and do not constitute
+                    a clinical progression or diagnosis.
+                  </p>
+                </div>
               </div>
+            )}
+          </div>
+
+            {/* Active Date Card: Note & Regional Observations */}
+            <div className={styles.activeDayCard} aria-busy={switchingDay}>
+              <div className={styles.activeDayHeader}>
+                <h2 className={styles.activeDayTitle}>Check-in for {formatDisplayDate(shownDate)}</h2>
+                {visitorUnavailable ? <span>History unavailable</span> : !shown ? <span role="status">Opening saved check-in…</span> : carriedFrom ? (
+                  <span className={styles.carriedTag}>Carried over from {formatDisplayDate(carriedFrom)}</span>
+                ) : currentEntry ? (
+                  currentEntry.observations.length === 0 ? (
+                    <span style={{ fontSize: "12px", color: "var(--muted)" }}>Explicitly empty check-in</span>
+                  ) : (
+                    <span style={{ fontSize: "12px", color: "var(--primary)", fontWeight: 600 }}>
+                      {currentEntry.observations.length} area{currentEntry.observations.length > 1 ? "s" : ""} marked
+                    </span>
+                  )
+                ) : (
+                  <span style={{ fontSize: "12px", color: "var(--error)", fontWeight: 600 }}>
+                    Unrecorded gap
+                  </span>
+                )}
+              </div>
+
+              {visitorUnavailable ? <p>Saved entries must be loaded before this date can be inspected.</p> : !shown ? <p role="status">Loading the saved map and note…</p> : currentEntry ? (
+                <>
+                  {/* Note */}
+                  {currentEntry.note && (
+                    <div className={styles.noteBox}>
+                      <div className={styles.noteLabel}>{carriedFrom ? `Patient Journal Note · ${formatDisplayDate(carriedFrom)}` : "Patient Journal Note"}</div>
+                      <div>{currentEntry.note}</div>
+                    </div>
+                  )}
+
+                  {/* Regional Observations Badges */}
+                  {currentEntry.observations.length > 0 ? (
+                    <div className={styles.observationTags}>
+                      {currentEntry.observations.map(obs => (
+                        <button type="button"
+                          key={`${obs.regionId}-${obs.painType}`}
+                          className={styles.observationTag}
+                          style={{ cursor: "pointer" }}
+                          onClick={() => {
+                            setSelectedRegion(obs.regionId);
+                            setSelectedPainType(obs.painType);
+                            setActiveTab("trends");
+                          }}
+                        >
+                          <span
+                            className={styles.observationTagDot}
+                            style={{ background: PAIN_COLORS[obs.painType] }}
+                          />
+                          <span>
+                            <strong>{formatRegionName(obs.regionId)}</strong>: {PAIN_LABELS[obs.painType]} · Peak{" "}
+                            {obs.peakIntensity.toFixed(1)}/10 ({(obs.mapCoverage * 100).toFixed(0)}% map coverage)
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className={styles.emptyStateBanner}>
+                      {carriedFrom ? `Nothing was marked in the check-in from ${formatDisplayDate(carriedFrom)}.` : "Saved with nothing marked on this calendar day."}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className={styles.missingStateBanner}>
+                  <strong>No check-in recorded for this date.</strong>
+                  <p style={{ margin: "4px 0 0", fontSize: "13px" }}>
+                    This calendar day is an unrecorded gap. It is not assumed to be pain-free.
+                  </p>
+                </div>
+              )}
+
+              {/* Visitor zero entries state */}
+              {activeProfileId === "visitor" && !historyLoading && !historyError && visitorEntries.length === 0 && (
+                <div style={{ textAlign: "center", paddingTop: 8 }}>
+                  <p style={{ fontSize: "13px", color: "var(--muted)", margin: "0 0 12px" }}>
+                    You have not saved any check-ins in this range yet.
+                  </p>
+                  <Link
+                    href="/"
+                    className={styles.controlButton}
+                    style={{ textDecoration: "none", display: "inline-flex" }}
+                  >
+                    Go to 3D check-in to paint pain
+                  </Link>
+                </div>
+              )}
             </div>
-          )}
         </div>
       </div>
     </div>

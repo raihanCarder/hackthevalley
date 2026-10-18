@@ -14,7 +14,7 @@ test("history page loads with Maya synthetic profile, scrubber, and no console e
   await expect(page.locator("h1")).toContainText("A picture over time");
 
   // Verify Maya profile is active and labeled synthetic
-  await expect(page.getByText("Maya · Synthetic sample · Six weeks of check-ins.", { exact: true })).toBeVisible();
+  await expect(page.getByText("Maya · Synthetic sample", { exact: true })).toBeVisible();
   await expect(page.locator("input[type=range]")).toBeVisible();
 
   // Verify default date shows Oct 17, 2026
@@ -102,7 +102,7 @@ test("switching to visitor profile displays clean empty state without leaking Ma
 
   // Switch back to Maya restores Maya
   await chooseProfile(page, "Maya");
-  await expect(page.getByText("Maya · Synthetic sample · Six weeks of check-ins.", { exact: true })).toBeVisible();
+  await expect(page.getByText("Maya · Synthetic sample", { exact: true })).toBeVisible();
   await expect(page.getByText("38 / 42")).toBeVisible();
 });
 

@@ -97,7 +97,10 @@ async function assembledJournal(page: Page) {
   await expect(page.getByText("Updated saved context.", { exact: true })).toBeVisible();
   expect(await fingerprints(page)).toEqual(original);
   await slider.fill("1");
-  await expect(page.getByText("No check-in recorded for this date.", { exact: true })).toBeVisible();
+  // A missed day carries the previous check-in's map and note forward, labeled as carried over.
+  await expect(page.getByText("Carried over from Thu, Oct 15, 2026", { exact: true })).toBeVisible();
+  await expect(page.getByText("Updated saved context.", { exact: true })).toBeVisible();
+  expect(await fingerprints(page)).toEqual(original);
   await slider.fill("3");
   await expect(page.getByText("Explicitly empty check-in")).toBeVisible();
   await page.getByRole("tab", { name: "Compare Dates" }).click();
@@ -147,7 +150,8 @@ test("rejected PostgreSQL writes retain the real painted draft, and browsers sha
   await page.route("**/api/entries/2026-10-14", route => route.request().method() === "PUT"
     ? route.fulfill({ status: 503, json: { error: { code: "unavailable", message: "Database write rejected" } } }) : route.continue());
   await page.getByRole("button", { name: "Save check-in", exact: true }).click();
-  await expect(page.getByRole("alert").filter({ hasText: "Your draft is still here" })).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "Not saved · try again" })).toHaveAttribute("title", /Your draft is still here/);
+  await expect(page.getByRole("button", { name: "Retry saving check-in" })).toBeVisible();
   expect(await fingerprints(page)).toEqual(before);
   await page.unroute("**/api/entries/2026-10-14"); await save(page);
   const saved = await (await page.request.get(`${baseURL}/api/entries/2026-10-14`)).json();
