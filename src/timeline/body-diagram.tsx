@@ -53,9 +53,9 @@ export function BodyDiagram({ observations, selectedRegionId, onSelectRegion }: 
           key={region.regionId}
           d={region.d}
           fillRule="evenodd"
-          fill={obs ? PAIN_COLORS[obs.painType] : "#d5ded7"}
+          fill={obs ? PAIN_COLORS[obs.painType] : "#d3d5d6"}
           fillOpacity={obs ? Math.min(1, Math.max(.55, obs.peakIntensity / 10)) : 1}
-          stroke={selected ? "#203b32" : "#9fb2a4"}
+          stroke={selected ? "#203b32" : "#a9adb0"}
           strokeWidth={selected ? 2.2 : .6}
           className={styles.diagramRegion}
           data-region={region.regionId}

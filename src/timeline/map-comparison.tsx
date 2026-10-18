@@ -3,11 +3,12 @@
 import { useEffect, useState } from "react";
 import type { LocalDate } from "../domain/contracts";
 import { BodyViewer } from "../body/body-viewer";
+import type { BodyShape } from "../body/body-shape";
 import { compareDates, formatRegionName } from "./analysis";
 import type { HistoryMapLoader, LoadedMap } from "./map-loader";
 import styles from "./timeline.module.css";
 
-export function MapComparison({ loader, earlier, later }: { loader: HistoryMapLoader | null; earlier: LocalDate; later: LocalDate }) {
+export function MapComparison({ loader, earlier, later, shape }: { loader: HistoryMapLoader | null; earlier: LocalDate; later: LocalDate; shape?: BodyShape }) {
   const [result, setResult] = useState<{ loader: HistoryMapLoader; earlier: LocalDate; later: LocalDate; maps: LoadedMap[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
@@ -27,7 +28,7 @@ export function MapComparison({ loader, earlier, later }: { loader: HistoryMapLo
     <div className={styles.comparisonMaps}>
       {[a, b].map((map, index) => <div key={index}>
         <h3>{index === 0 ? "Earlier" : "Later"}: {index === 0 ? earlier : later}</h3>
-        {map.entry ? <BodyViewer layers={map.layers} label={`${index === 0 ? "Earlier" : "Later"} saved map for ${map.entry.localDate}`} showLegend={false} />
+        {map.entry ? <BodyViewer layers={map.layers} label={`${index === 0 ? "Earlier" : "Later"} saved map for ${map.entry.localDate}`} showLegend={false} shape={shape} />
           : <p>No check-in recorded. This date cannot be compared as zero pain.</p>}
       </div>)}
     </div>

@@ -11,6 +11,8 @@ import type { PaintLayers } from "./layers";
 import type { SceneStatus } from "./body-scene";
 import { viewLabel } from "./region-labels";
 import { FocusButtons } from "./focus-buttons";
+import { BodyShapePanel } from "./body-shape-panel";
+import { useBodyShapePreference } from "./body-shape-preference";
 import styles from "./body.module.css";
 
 const BodyScene = dynamic(() => import("./body-scene"), {
@@ -40,6 +42,8 @@ export function BodyWorkbench({ initialLayers, handleRef, onChange }: BodyEditor
   const [canUndo, setCanUndo] = useState(false);
   const [observations, setObservations] = useState<RegionalObservation[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [bodyShape, setBodyShape] = useBodyShapePreference();
+  const [shapeOpen, setShapeOpen] = useState(false);
   // Held in a ref so an inline callback does not resubscribe (and replay the last change) on every render.
   const changeListener = useRef(onChange);
   useEffect(() => { changeListener.current = onChange; }, [onChange]);
@@ -83,12 +87,17 @@ export function BodyWorkbench({ initialLayers, handleRef, onChange }: BodyEditor
     <div className={styles.stageRow}>
       <div className={styles.stageColumn}>
         <div className={`body-stage ${styles.stage}`} data-mode={mode}>
-          <BodyScene handle={handle} editable mode={mode} view={view} viewRequest={viewRequest} brush={brush} onStatus={setStatus}
+          <BodyScene handle={handle} editable mode={mode} view={view} viewRequest={viewRequest} brush={brush} onStatus={setStatus} shape={bodyShape}
             label="Rotatable 3D body for painting pain, patient-left is positive X" describedBy="scene-help" />
         </div>
         <div className="stage-bottom"><div className="view-switch" role="group" aria-label="Camera views">{VIEWS.map(next =>
           <button type="button" key={next} onClick={() => changeView(next)}>{viewLabel(next)}</button>
-        )}</div><FocusButtons onFocus={target => handle.focus(target)} /><p id="scene-help" aria-live="polite">{help}</p></div>
+        )}</div><FocusButtons onFocus={target => handle.focus(target)} />
+          <button type="button" className={styles.shapeToggle} aria-expanded={shapeOpen} aria-controls="body-shape-panel" onClick={() => setShapeOpen(open => !open)}>
+            {shapeOpen ? "Hide body shape" : "Adjust body shape"}
+          </button>
+          <div id="body-shape-panel" hidden={!shapeOpen}><BodyShapePanel shape={bodyShape} onChange={setBodyShape} /></div>
+          <p id="scene-help" aria-live="polite">{help}</p></div>
       </div>
       <BrushToolbar brush={brush} onBrush={updateBrush} canUndo={canUndo} onUndo={() => handle.undo()} observations={observations} disabled={unavailable} />
     </div>

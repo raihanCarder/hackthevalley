@@ -24,6 +24,10 @@ The brush is soft: full strength inside 45% of the radius, smoothstep to zero at
 
 Successive samples are joined along the shortest surface path when they are at most 0.25 m apart and the surface path is at most 1.6x the straight line (plus half a radius). A fingertip-to-fingertip jump is therefore two separate marks, and a miss (pointer off the body) breaks the path. The renderer also subdivides pointer movement in screen space (about half the brush radius per raycast). Undo keeps at most 10 completed strokes as per-texel patches of the one affected layer.
 
+## Body shape
+
+Body-shape sliders and the default figure change vertex positions only. Triangles, UV charts, texel→triangle data, and region labels are identical for every shape, so maps, region observations, and saved check-ins do not depend on shape. Painting measures geodesic distance on the currently displayed surface. Shapes are a display preference and are never stored with an entry.
+
 ## Measurements
 
 The shared reducer is `reduceRegions` (`src/body/regions.ts`). Bytes below 13 (`PRESENCE_THRESHOLD`) count as unpainted; mean intensity averages all valid region texels, including zeros; peak is the maximum; map coverage is the fraction of valid region texels at or above the threshold. Only present region/type pairs are returned, in `REGION_IDS` then `PAIN_TYPES` order, so an explicitly saved empty map yields `[]`. Intensities are rounded to 4 places, coverage to 6. Coverage is UV map coverage, not skin area. Never add intensities across pain types.

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { PAIN_TYPES } from "../../src/domain/contracts";
 import { PaintEngine, type StrokeOptions } from "../../src/body/paint-engine";
 import { createEmptyLayers, intensityToByte, MAX_UNDO_STROKES, TEXEL_COUNT } from "../../src/body/layers";
-import { texelPosition } from "../../src/body/atlas";
+import { surfaceHitNear, texelPosition } from "../../src/body/atlas";
 import { reduceRegions } from "../../src/body/regions";
 import { asset, atlas, fromFront, landmark, paintedTexels, regionPainted, texelNormal } from "./helpers";
 
@@ -168,7 +168,9 @@ test("snapshots and loads never alias engine buffers", () => {
 test("fast strokes are joined along the surface without gaps, but never bridge separate fingers or a jump", () => {
   const engine = new PaintEngine(atlas);
   const top = landmark("left-thigh-upper"), bottom = landmark("left-thigh-lower");
-  paint(engine, brush("aching", 7, .02), top, bottom);
+  // Surface samples about 5 cm apart (fast pointer moves; the renderer itself samples every half brush radius).
+  const samples = [0, .2, .4, .6, .8, 1].map(t => surfaceHitNear(atlas, [0, 1, 2].map(axis => top.point[axis] + (bottom.point[axis] - top.point[axis]) * t) as [number, number, number]));
+  paint(engine, brush("aching", 7, .02), ...samples.map(hit => ({ ...hit, texel: -1, region: top.region })));
   // Every surface point near the straight path between the two samples is painted.
   const layer = engine.peek().aching;
   const thigh = atlas.triangleRegion[top.triangle];

@@ -95,3 +95,4 @@ test("the 2D diagram is traced from the same regions: full body front/back plus 
 import "./body/painting.cases";
 import "./body/regions.cases";
 import "./body/map-codec.cases";
+import "./body/shape.cases";

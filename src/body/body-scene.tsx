@@ -11,6 +11,8 @@ import { intensityToByte, type PaintLayers } from "./layers";
 import type { CameraFocus, FocusTarget, MannequinAsset } from "./mannequin";
 import { createPainMaterial, createPaintTexture, packPaintTexture, STATIC_TIME } from "./pain-material";
 import { PaintEngine, type SurfaceHit } from "./paint-engine";
+import { DEFAULT_BODY_SHAPE, isDefaultShape, type BodyShape } from "./body-shape";
+import { createMorpher } from "./body-morph";
 
 type PointerHit = SurfaceHit & { normal: readonly [number, number, number] };
 import { reduceRegions } from "./regions";
@@ -26,6 +28,8 @@ interface Props {
   label: string;
   describedBy?: string;
   onStatus?: (status: SceneStatus) => void;
+  /** Body shape (display only; maps and measurements are identical on every shape). */
+  shape?: BodyShape;
 }
 const VIEW_POSITIONS: Record<CameraView, [number, number, number]> = {
   front: [0, 1, 2.9], back: [0, 1, -2.9], left: [2.9, 1, 0], right: [-2.9, 1, 0],
@@ -39,9 +43,9 @@ const RING_COLORS = { brush: 0x203b32, eraser: 0x8d302c };
 interface SceneStats { created: number; live: number; disposed: number; handles: Set<DeferredBodyHandle> }
 const stats: SceneStats = ((globalThis as { __painJournalBodyScenes?: SceneStats }).__painJournalBodyScenes ??= { created: 0, live: 0, disposed: 0, handles: new Set() });
 
-export default function BodyScene({ handle, editable, mode, view, viewRequest, brush, label, describedBy, onStatus }: Props) {
+export default function BodyScene({ handle, editable, mode, view, viewRequest, brush, label, describedBy, onStatus, shape = DEFAULT_BODY_SHAPE }: Props) {
   const mount = useRef<HTMLDivElement>(null);
-  const controller = useRef<(SceneController & { setMode(mode: InteractionMode): void }) | null>(null);
+  const controller = useRef<(SceneController & { setMode(mode: InteractionMode): void; setShape(shape: BodyShape): void }) | null>(null);
   const currentMode = useRef(mode);
   const currentView = useRef(view);
   const currentBrush = useRef(brush);
@@ -49,6 +53,8 @@ export default function BodyScene({ handle, editable, mode, view, viewRequest, b
   currentMode.current = editable ? mode : "rotate";
   currentView.current = view;
   currentBrush.current = brush;
+  const currentShape = useRef(shape);
+  currentShape.current = shape;
   statusListener.current = onStatus;
   const [status, setStatusState] = useState<SceneStatus>("loading");
 
@@ -108,9 +114,13 @@ export default function BodyScene({ handle, editable, mode, view, viewRequest, b
           canvas.dataset.mode = effective;
           ring.visible = false; requestRender();
         };
+        // Named views frame the whole figure; `frame` is its height relative to the default shape.
+        let frame = 1;
         const setView = (next: CameraView) => {
-          camera.position.set(...VIEW_POSITIONS[next]);
-          controls!.target.set(0, 1, 0);
+          // A shorter figure stays smaller in the frame; a taller one zooms out just enough to fit.
+          const reach = Math.max(1, frame);
+          camera.position.set(...VIEW_POSITIONS[next].map((n, axis) => axis === 1 ? frame : n * reach) as [number, number, number]);
+          controls!.target.set(0, frame, 0);
           camera.lookAt(controls!.target);
           controls!.update();
           canvas.dataset.view = next;
@@ -171,7 +181,7 @@ export default function BodyScene({ handle, editable, mode, view, viewRequest, b
         }
         const stroke = { pointer: -1, x: 0, y: 0 };
 
-        controller.current = { setMode, setView, focus, snapshot: () => engine!.snapshot(), load: () => undefined, undo: () => false, capture: async () => ({}) };
+        controller.current = { setMode, setView, focus, setShape: () => undefined, snapshot: () => engine!.snapshot(), load: () => undefined, undo: () => false, capture: async () => ({}) };
         setMode(currentMode.current);
         setView(currentView.current);
 
@@ -198,6 +208,7 @@ export default function BodyScene({ handle, editable, mode, view, viewRequest, b
         geometry.setAttribute("normal", new THREE.Float32BufferAttribute(asset.normals, 3));
         geometry.setAttribute("uv", new THREE.Float32BufferAttribute(asset.uvs, 2));
         geometry.setIndex(asset.indices);
+        geometry.setAttribute("garment", new THREE.Float32BufferAttribute(asset.garment, 3));
         texture = createPaintTexture();
         material = createPainMaterial(texture);
         const body = new THREE.Mesh(geometry, material);
@@ -217,6 +228,33 @@ export default function BodyScene({ handle, editable, mode, view, viewRequest, b
           mesh.userData.triangleStart = chart.triangleStart;
           return mesh;
         });
+        // Body shape: morph the render mesh, the painting surface, the raycast meshes, and the framing together.
+        const morpher = createMorpher(asset, atlas);
+        let shapeRequest = 0;
+        const setShape = (next: BodyShape) => {
+          const request = ++shapeRequest;
+          morpher.apply(next).then(result => {
+            if (cancelled || request !== shapeRequest) return; // a newer shape won
+            const positionAttribute = geometry!.getAttribute("position") as THREE.BufferAttribute;
+            const normalAttribute = geometry!.getAttribute("normal") as THREE.BufferAttribute;
+            (positionAttribute.array as Float32Array).set(result.positions); positionAttribute.needsUpdate = true;
+            (normalAttribute.array as Float32Array).set(result.normals); normalAttribute.needsUpdate = true;
+            geometry!.computeBoundingSphere();
+            asset.charts.forEach((chart, i) => {
+              const attribute = rayMeshes[i].geometry.getAttribute("position") as THREE.BufferAttribute;
+              (attribute.array as Float32Array).set(result.positions.subarray(chart.vertexStart * 3, (chart.vertexStart + chart.vertexCount) * 3));
+              attribute.needsUpdate = true;
+              rayMeshes[i].geometry.computeBoundingSphere();
+            });
+            focusPresets = result.focus;
+            frame = result.height;
+            canvas.dataset.bodyHeight = result.height.toFixed(4);
+            const current = canvas.dataset.view;
+            if (current === "front" || current === "back" || current === "left" || current === "right") setView(current);
+            else if (current && current in result.focus) focus(current as FocusTarget);
+            requestRender();
+          }).catch(() => { if (!cancelled && request === shapeRequest) canvas.dataset.bodyShapeError = "unavailable"; });
+        };
         const raycaster = new THREE.Raycaster();
         const ndc = new THREE.Vector2();
         const hitAt = (clientX: number, clientY: number): PointerHit | null => {
@@ -346,8 +384,8 @@ export default function BodyScene({ handle, editable, mode, view, viewRequest, b
           const output: BodyCaptures = {};
           try {
             for (const side of views as CaptureView[]) {
-              captureCamera.position.set(0, .98, side === "front" ? 4.1 : -4.1);
-              captureCamera.lookAt(0, .98, 0);
+              captureCamera.position.set(0, .98 * frame, (side === "front" ? 4.1 : -4.1) * frame);
+              captureCamera.lookAt(0, .98 * frame, 0);
               renderer!.setRenderTarget(target);
               renderer!.setClearColor(0xffffff, 0);
               renderer!.clear();
@@ -366,14 +404,15 @@ export default function BodyScene({ handle, editable, mode, view, viewRequest, b
           return output;
         };
 
-        const ready: SceneController & { setMode(mode: InteractionMode): void } = {
-          setMode, setView, focus,
+        const ready: SceneController & { setMode(mode: InteractionMode): void; setShape(shape: BodyShape): void } = {
+          setMode, setView, focus, setShape,
           snapshot: () => engine!.snapshot(),
           load(layers: PaintLayers | null) { stroke.pointer = -1; engine!.load(layers); emit("load"); },
           undo() { if (!editable || !engine!.undo()) return false; emit("undo"); return true; },
           capture,
         };
         controller.current = ready;
+        if (!isDefaultShape(currentShape.current)) setShape(currentShape.current);
         raf = requestAnimationFrame(loop);
         attached = ready;
         handle.attach(ready);
@@ -402,6 +441,7 @@ export default function BodyScene({ handle, editable, mode, view, viewRequest, b
 
   useEffect(() => { controller.current?.setMode(editable ? mode : "rotate"); }, [mode, editable]);
   useEffect(() => { controller.current?.setView(view); }, [view, viewRequest]);
+  useEffect(() => { controller.current?.setShape(shape); }, [shape]);
 
   return <><div className="scene-mount" ref={mount} aria-hidden={status !== "ready"} data-status={status} />
     {status === "loading" && <div className="scene-message" role="status">Preparing your body map…</div>}

@@ -152,3 +152,8 @@ test("Maya's journal source is read-only, bounded, and returns detached copies",
   await assert.rejects(source.read("visitor", parseLocalDate("2026-10-10")), { code: "forbidden" });
   assert.ok(!("upsert" in source));
 });
+
+test("Maya's maps mark only her three planned region/sensation pairs", () => {
+  const pairs = new Set(MAYA_ENTRIES.flatMap(entry => entry.observations.map(o => `${o.regionId}:${o.painType}`)));
+  assert.deepEqual([...pairs].sort(), ["back-lower-torso:aching", "left-calf:burning", "left-thigh:burning"]);
+});

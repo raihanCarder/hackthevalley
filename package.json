@@ -16,6 +16,7 @@
     "db:migrate": "node --import tsx db/migrate.ts",
     "test:browser": "playwright test",
     "body:generate": "node --import tsx scripts/generate-body.ts",
+    "body:shape": "node --import tsx scripts/generate-body-shape.ts",
     "demo:generate": "node --import tsx scripts/generate-maya.ts"
   },
   "dependencies": {

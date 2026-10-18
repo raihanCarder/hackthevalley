@@ -50,6 +50,23 @@ Provenance and licensing are in `public/body/PROVENANCE.md` and `public/body/LIC
 
 Both the editor and `BodyViewer` offer "Zoom to" close-ups (Face, Your left/right hand, Your left/right foot) next to the named views. The handle exposes the same presets as `focus(target)`. Small parts are painted in close-up; the brush and the regions list work the same at any zoom.
 
+## Body shape and appearance
+
+The figure is neutral grey with a painted-on crop top and shorts, so it reads clearly as a mannequin and every pain color stands out. There is no skin-tone setting.
+
+"Adjust body shape" in the editor opens these optional sliders:
+
+- **Main:** sex, height, weight, muscle, and waist and belly.
+- **Proportions:** shoulders, hips, and leg length.
+- **More options:** age (25–70).
+- **Reset body shape** returns to the default figure.
+
+The shape is a per-browser preference (`useBodyShapePreference`, `localStorage` key `pain-journal-body-shape`), shared live by the editor and viewers. History playback and date comparison use it for the visitor's own maps; Maya and the printed report always use the default figure.
+
+Shapes only move vertices. Triangles, UVs, region labels, and texel data never change, so a map looks the same on every shape and measures identically, and the body-map version stays `mannequin-v2`. `src/body/body-shape.ts` (pure) blends the CC0 morphs with MakeHuman's macro weights. `src/body/body-morph.ts` reshapes the welded painting surface in place, so geodesic painting follows the new shape, and recomputes seam-free normals, the close-up presets, and the framing. Shorter figures stay smaller in the frame; taller ones zoom out to fit.
+
+The 2 MB shape pack is fetched only when a non-default shape is used. `BodyViewer` takes an optional `shape` prop.
+
 ## Pain effects (task 2.4)
 
 A single `ShaderMaterial` samples one RGBA paint texture (R burning, G sharp, B aching, A tingling) and keeps the task 1 hemisphere + key + fill lighting for the body. Pain colors use gentler shading so their hue stays readable.
