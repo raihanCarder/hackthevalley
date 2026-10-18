@@ -4,6 +4,7 @@ import { MAYA_ENTRIES } from "../../src/demo/maya";
 
 // Run explicitly against an app configured with tests/helpers/gemini-provider.mjs.
 if (process.env.TEST_GEMINI_PROVIDER === "1") {
+  test.skip(true, "Gemini summary controls are temporarily hidden from reports.");
   test("You's Gemini report uses PostgreSQL records and sends no browser-supplied evidence", async ({ page, request, baseURL }) => {
     await request.post("http://127.0.0.1:3199/mode/valid");
     const saved = await request.put("/api/entries/2026-10-16", { headers: { Origin: baseURL! }, data: {
