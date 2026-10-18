@@ -34,15 +34,6 @@ export function CheckInWorkspace({ children }: { children: React.ReactNode }) {
   const [repository, setRepository] = useState<HttpJournal | null>(null);
   // The workbench attaches its body handle before the first restoration starts.
   useEffect(() => { if (openedYou) setRepository(new HttpJournal()); }, [openedYou]);
-  const [services, setServices] = useState({ postgresql: "Checking…", gemini: "Checking…" });
-  useEffect(() => {
-    if (!openedYou) return;
-    const abort = new AbortController();
-    fetch("/api/status", { signal: abort.signal, cache: "no-store" }).then(response => response.json()).then(body => {
-      if (!abort.signal.aborted) setServices({ postgresql: body.services?.postgresql ?? "Unavailable", gemini: body.services?.gemini ?? "Unavailable" });
-    }).catch(() => { if (!abort.signal.aborted) setServices({ postgresql: "Unavailable", gemini: "Unknown" }); });
-    return () => abort.abort();
-  }, [openedYou]);
 
   return <div className="journal-workspace" data-view="map">
     {children}
@@ -52,10 +43,6 @@ export function CheckInWorkspace({ children }: { children: React.ReactNode }) {
       <section className={styles.detailsView} aria-label="Check-in details">
         <header className={styles.detailsHeading}><h1>Check-in details</h1><p>Add a note and save your body map.</p></header>
         <CheckInPanel storage="postgresql" repository={repository} editor={repository ? editor : undefined} onBusyChange={setBusy} />
-        <div className={styles.storage}>
-          <dl className={styles.services} aria-label="Service status"><div><dt>PostgreSQL:</dt><dd>{services.postgresql}</dd></div><div><dt>Gemini:</dt><dd>{services.gemini}</dd></div></dl>
-        </div>
-        <section className={styles.keyboardGuide} aria-labelledby="keyboard-guide-heading"><h2 id="keyboard-guide-heading">Using the body map</h2><p>In Rotate mode, drag to turn the body and scroll to zoom. In Paint mode, drag on the body to mark what you feel.</p><p>With the body focused, use arrow keys to turn, + / − to zoom, and Home to reset the view. Ctrl or ⌘ + Z undoes a stroke.</p></section>
       </section>
     } /></div>}
     {ready && profile === "maya" && <div className={styles.mapView}><MayaWorkbench panel={details ? "details" : mapPanel} onPanelChange={changePanel} /></div>}
@@ -100,8 +87,6 @@ function MayaWorkbench({ panel, onPanelChange }: { panel: "tools" | "body" | "de
             <Button className={styles.save} type="button" disabled>Save check-in<ArrowUp size={16} aria-hidden="true" /></Button>
           </div>
         </div>
-        <p className={styles.explanation}>Choose another date to view a different recorded body map.</p>
       </aside>
-      <div className={styles.storage}><a className="text-link" href="/history?profile=maya">Explore Maya’s history</a></div>
     </section>} />;
 }

@@ -147,7 +147,8 @@ test("rejected PostgreSQL writes retain the real painted draft, and browsers sha
   await page.route("**/api/entries/2026-10-14", route => route.request().method() === "PUT"
     ? route.fulfill({ status: 503, json: { error: { code: "unavailable", message: "Database write rejected" } } }) : route.continue());
   await page.getByRole("button", { name: "Save check-in", exact: true }).click();
-  await expect(page.getByRole("alert").filter({ hasText: "Your draft is still here" })).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "Not saved · try again" })).toHaveAttribute("title", /Your draft is still here/);
+  await expect(page.getByRole("button", { name: "Retry saving check-in" })).toBeVisible();
   expect(await fingerprints(page)).toEqual(before);
   await page.unroute("**/api/entries/2026-10-14"); await save(page);
   const saved = await (await page.request.get(`${baseURL}/api/entries/2026-10-14`)).json();

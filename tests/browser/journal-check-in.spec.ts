@@ -90,15 +90,17 @@ test("late server reads do not replace a newer selected date", async ({ page }) 
   await expect(note).toHaveValue("Saved note for 2026-10-16");
 });
 
-test("unavailable PostgreSQL stays explicit after reload and offers retry", async ({ page }) => {
+test("unavailable PostgreSQL stays explicit after reload and recovers", async ({ page }) => {
   await page.route("**/api/entries/*?profile=visitor", route => route.fulfill({ status: 503, json: { error: { code: "unavailable", message: "PostgreSQL is unavailable." } } }));
   await page.goto("/check-in");
-  await expect(page.getByText("PostgreSQL is unavailable.", { exact: true })).toBeVisible();
+  const status = page.getByRole("status").filter({ hasText: "Check-in unavailable" });
+  await expect(status).toBeVisible();
+  await expect(status).toHaveAttribute("title", "PostgreSQL is unavailable.");
   await page.reload();
-  await expect(page.getByText("PostgreSQL is unavailable.", { exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Retry opening check-in" })).toBeVisible();
+  await expect(status).toBeVisible();
+  await expect(page.getByRole("button", { name: "Save check-in", exact: true })).toBeDisabled();
   await page.unroute("**/api/entries/*?profile=visitor");
-  await page.getByRole("button", { name: "Retry opening check-in" }).click();
+  await page.reload();
   await expect(page.getByText("No check-in recorded", { exact: true })).toBeVisible();
 });
 

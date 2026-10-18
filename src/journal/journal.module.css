@@ -14,14 +14,6 @@
 .detailsView .composerFooter { flex-direction: column; align-items: stretch; gap: 12px; }
 .detailsView .noteMeta { justify-content: space-between; }
 .detailsView .save { justify-content: space-between; }
-.detailsView .storage { display: grid; }
-.detailsView .storage label { display: grid; gap: 6px; }
-.detailsView .storage select { width: 100%; }
-.detailsView .services { display: grid; }
-.detailsView .keyboardGuide { margin-top: 24px; }
-.keyboardGuide { width: min(900px, 100%); margin: 32px auto 0; padding-top: 20px; border-top: 1px solid var(--border); color: var(--muted); font-size: 12px; line-height: 1.7; }
-.keyboardGuide h2 { font-size: 13px; color: var(--foreground); }
-.keyboardGuide p + p { margin-top: 10px; }
 .panel { min-width: 0; width: min(900px, 100%); margin-inline: auto; padding-top: 6px; }
 .panelHeader { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
 .dateField { display: flex; align-items: center; gap: 9px; }
@@ -40,17 +32,8 @@
 .composerFooter { display: flex; justify-content: space-between; align-items: end; gap: 12px; margin-top: 4px; }
 .noteMeta { display: flex; gap: 12px; flex-wrap: wrap; color: var(--muted); font-size: 10px; }
 .panel .save { min-height: 36px; height: auto; font-size: 12px; padding: 8px 12px; border-radius: 9px; flex: none; }
-.explanation, .privacy, .source { color: var(--muted); font-size: 10px; line-height: 1.6; }
-.explanation { margin: 10px 0 0; text-align: center; }
-.privacy { margin: 3px 0 0; text-align: center; }
-.source { padding: 10px 12px; background: var(--surface); border-radius: 8px; margin-bottom: 10px; }
+.source { color: var(--muted); font-size: 10px; line-height: 1.6; padding: 10px 12px; background: var(--surface); border-radius: 8px; margin-bottom: 10px; }
 .error { color: var(--error); font-size: 12px; overflow-wrap: anywhere; margin-block: 10px; }
-.storage { width: min(900px, 100%); margin: 18px auto 0; display: flex; align-items: center; justify-content: space-between; gap: 12px 24px; flex-wrap: wrap; padding-top: 16px; border-top: 1px solid var(--border); color: var(--muted); }
-.storage label { display: flex; align-items: center; gap: 10px; font-size: 10px; }
-.storage select { min-height: 32px; color: var(--muted); background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; font-size: 11px; max-width: 100%; }
-.services { display: flex; gap: 6px 16px; flex-wrap: wrap; margin: 0; font-size: 10px; color: var(--muted); }
-.services div { display: flex; gap: 5px; }
-.services dd { margin: 0; }
 @media (max-width: 1050px) { .mapActions { margin-left: 0; width: 100%; } }
 @media (max-width: 580px) {
   .panelHeader { gap: 10px; }
@@ -62,5 +45,4 @@
   .composer { padding: 14px; }
   .composerFooter { align-items: center; }
   .noteMeta { gap: 3px; flex-direction: column; }
-  .services { font-size: 9px; }
 }
