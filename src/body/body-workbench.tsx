@@ -10,6 +10,7 @@ import { BrushToolbar } from "./brush-toolbar";
 import type { PaintLayers } from "./layers";
 import type { SceneStatus } from "./body-scene";
 import { viewLabel } from "./region-labels";
+import { FocusButtons } from "./focus-buttons";
 import styles from "./body.module.css";
 
 const BodyScene = dynamic(() => import("./body-scene"), {
@@ -87,7 +88,7 @@ export function BodyWorkbench({ initialLayers, handleRef, onChange }: BodyEditor
         </div>
         <div className="stage-bottom"><div className="view-switch" role="group" aria-label="Camera views">{VIEWS.map(next =>
           <button type="button" key={next} onClick={() => changeView(next)}>{viewLabel(next)}</button>
-        )}</div><p id="scene-help" aria-live="polite">{help}</p></div>
+        )}</div><FocusButtons onFocus={target => handle.focus(target)} /><p id="scene-help" aria-live="polite">{help}</p></div>
       </div>
       <BrushToolbar brush={brush} onBrush={updateBrush} canUndo={canUndo} onUndo={() => handle.undo()} observations={observations} disabled={unavailable} />
     </div>

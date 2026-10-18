@@ -8,6 +8,7 @@ import { DEFAULT_BRUSH } from "./brush";
 import { PRESENCE_THRESHOLD, type PaintLayers } from "./layers";
 import { PainLegend } from "./pain-swatch";
 import { viewLabel } from "./region-labels";
+import { FocusButtons } from "./focus-buttons";
 import styles from "./body.module.css";
 
 const BodyScene = dynamic(() => import("./body-scene"), {
@@ -51,6 +52,7 @@ export function BodyViewer({ layers, label, handleRef, initialView = "front", sh
       <div className="view-switch" role="group" aria-label="Camera views">{(["front", "back", "left", "right"] as const).map(next =>
         <button type="button" key={next} onClick={() => { setView(next); setViewRequest(value => value + 1); }}>{viewLabel(next)}</button>
       )}</div>
+      <FocusButtons onFocus={target => handle.focus(target)} />
       <p id={helpId}>Read-only map. Drag to turn · Scroll to zoom</p>
       {showLegend && <PainLegend present={present} />}
     </div>

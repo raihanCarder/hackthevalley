@@ -8,9 +8,11 @@ import { buildBodyAtlas, type BodyAtlas } from "./atlas";
 import type { BodyCaptures, CaptureOptions, CaptureView, DeferredBodyHandle, SceneController } from "./body-handle";
 import { BRUSH_RADII, type BrushSettings } from "./brush";
 import { intensityToByte, type PaintLayers } from "./layers";
-import type { MannequinAsset } from "./mannequin";
+import type { CameraFocus, FocusTarget, MannequinAsset } from "./mannequin";
 import { createPainMaterial, createPaintTexture, packPaintTexture, STATIC_TIME } from "./pain-material";
 import { PaintEngine, type SurfaceHit } from "./paint-engine";
+
+type PointerHit = SurfaceHit & { normal: readonly [number, number, number] };
 import { reduceRegions } from "./regions";
 
 export type SceneStatus = "loading" | "ready" | "error";
@@ -29,6 +31,8 @@ const VIEW_POSITIONS: Record<CameraView, [number, number, number]> = {
   front: [0, 1, 2.9], back: [0, 1, -2.9], left: [2.9, 1, 0], right: [-2.9, 1, 0],
 };
 const FOV = 40;
+/** Close enough for a fingertip when focused on a hand; far enough to see the whole body. */
+const MIN_DISTANCE = .3, MAX_DISTANCE = 5;
 const RING_COLORS = { brush: 0x203b32, eraser: 0x8d302c };
 
 /** Diagnostic hook for renderer lifecycle and handle checks in browser tests (task 2.8). Holds no patient data of its own. */
@@ -86,8 +90,8 @@ export default function BodyScene({ handle, editable, mode, view, viewRequest, b
         controls.target.set(0, 1, 0);
         controls.enableDamping = false;
         controls.enablePan = false;
-        controls.minDistance = 1.6;
-        controls.maxDistance = 5;
+        controls.minDistance = MIN_DISTANCE;
+        controls.maxDistance = MAX_DISTANCE;
         controls.minPolarAngle = .08;
         controls.maxPolarAngle = Math.PI - .08;
         controls.rotateSpeed = .75;
@@ -112,6 +116,18 @@ export default function BodyScene({ handle, editable, mode, view, viewRequest, b
           canvas.dataset.view = next;
           publishCamera(); requestRender();
         };
+        // Close-up presets for small parts (face, hands, feet), from the body asset once it has loaded.
+        let focusPresets: Record<FocusTarget, CameraFocus> | undefined;
+        const focus = (target: FocusTarget) => {
+          const preset = focusPresets?.[target];
+          if (!preset) return;
+          camera.position.set(...preset.position);
+          controls!.target.set(...preset.target);
+          camera.lookAt(controls!.target);
+          controls!.update();
+          canvas.dataset.view = target;
+          publishCamera(); requestRender();
+        };
 
         listen<KeyboardEvent>(canvas, "keydown", event => {
           if (event.key === "Escape" && engine?.stroking) { cancelStroke(); event.preventDefault(); return; }
@@ -123,8 +139,8 @@ export default function BodyScene({ handle, editable, mode, view, viewRequest, b
             case "ArrowRight": spherical.theta += .15; break;
             case "ArrowUp": spherical.phi = Math.max(.08, spherical.phi - .15); break;
             case "ArrowDown": spherical.phi = Math.min(Math.PI - .08, spherical.phi + .15); break;
-            case "+": case "=": spherical.radius = Math.max(1.6, spherical.radius * .9); break;
-            case "-": spherical.radius = Math.min(5, spherical.radius * 1.1); break;
+            case "+": case "=": spherical.radius = Math.max(MIN_DISTANCE, spherical.radius * .9); break;
+            case "-": spherical.radius = Math.min(MAX_DISTANCE, spherical.radius * 1.1); break;
             case "Home": setView("front"); event.preventDefault(); return;
             default: return;
           }
@@ -155,7 +171,7 @@ export default function BodyScene({ handle, editable, mode, view, viewRequest, b
         }
         const stroke = { pointer: -1, x: 0, y: 0 };
 
-        controller.current = { setMode, setView, snapshot: () => engine!.snapshot(), load: () => undefined, undo: () => false, capture: async () => ({}) };
+        controller.current = { setMode, setView, focus, snapshot: () => engine!.snapshot(), load: () => undefined, undo: () => false, capture: async () => ({}) };
         setMode(currentMode.current);
         setView(currentView.current);
 
@@ -169,12 +185,13 @@ export default function BodyScene({ handle, editable, mode, view, viewRequest, b
         });
         observer.observe(host);
 
-        const response = await fetch("/body/mannequin-v1.json", { signal: abort.signal });
+        const response = await fetch(`/body/${BODY_MAP_VERSION}.json`, { signal: abort.signal });
         if (!response.ok) throw new Error("Body asset unavailable.");
         const asset: MannequinAsset = await response.json();
         if (cancelled) return;
         if (asset.bodyMapVersion !== BODY_MAP_VERSION) throw new Error("Unsupported body asset version.");
         atlas = buildBodyAtlas(asset);
+        focusPresets = asset.focus;
         engine = new PaintEngine(atlas);
         geometry = new THREE.BufferGeometry();
         geometry.setAttribute("position", new THREE.Float32BufferAttribute(asset.positions, 3));
@@ -186,34 +203,31 @@ export default function BodyScene({ handle, editable, mode, view, viewRequest, b
         const body = new THREE.Mesh(geometry, material);
         scene.add(body);
 
-        // One raycast mesh per UV island: bounding-sphere culling keeps hit tests cheap, and the island is known per hit.
+        // One raycast mesh per UV chart: bounding-sphere culling keeps hit tests cheap, and each hit maps to its triangle.
         const rayMaterial = new THREE.MeshBasicMaterial({ side: THREE.FrontSide });
         disposables.push(rayMaterial);
-        const rayMeshes = asset.islands.map(island => {
-          const islandGeometry = new THREE.BufferGeometry();
-          const start = island.vertexStart, end = start + island.vertexCount;
-          islandGeometry.setAttribute("position", new THREE.Float32BufferAttribute(asset.positions.slice(start * 3, end * 3), 3));
-          islandGeometry.setAttribute("uv", new THREE.Float32BufferAttribute(asset.uvs.slice(start * 2, end * 2), 2));
-          const indices: number[] = [];
-          for (let i = 0; i < asset.indices.length; i += 3) if (asset.indices[i] >= start && asset.indices[i] < end) indices.push(asset.indices[i] - start, asset.indices[i + 1] - start, asset.indices[i + 2] - start);
-          islandGeometry.setIndex(indices);
-          islandGeometry.computeBoundingSphere();
-          disposables.push(islandGeometry);
-          const mesh = new THREE.Mesh(islandGeometry, rayMaterial);
-          mesh.userData.island = island.id;
+        const rayMeshes = asset.charts.map(chart => {
+          const chartGeometry = new THREE.BufferGeometry();
+          const start = chart.vertexStart, end = start + chart.vertexCount;
+          chartGeometry.setAttribute("position", new THREE.Float32BufferAttribute(asset.positions.slice(start * 3, end * 3), 3));
+          chartGeometry.setIndex(asset.indices.slice(chart.triangleStart * 3, (chart.triangleStart + chart.triangleCount) * 3).map(index => index - start));
+          chartGeometry.computeBoundingSphere();
+          disposables.push(chartGeometry);
+          const mesh = new THREE.Mesh(chartGeometry, rayMaterial);
+          mesh.userData.triangleStart = chart.triangleStart;
           return mesh;
         });
         const raycaster = new THREE.Raycaster();
         const ndc = new THREE.Vector2();
-        const hitAt = (clientX: number, clientY: number): SurfaceHit | null => {
+        const hitAt = (clientX: number, clientY: number): PointerHit | null => {
           const rect = canvas.getBoundingClientRect();
           ndc.set((clientX - rect.left) / rect.width * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
           raycaster.setFromCamera(ndc, camera);
           const hit = raycaster.intersectObjects(rayMeshes, false)[0];
-          if (!hit?.face) return null;
-          return { point: [hit.point.x, hit.point.y, hit.point.z], normal: [hit.face.normal.x, hit.face.normal.y, hit.face.normal.z], island: hit.object.userData.island as number };
+          if (!hit?.face || hit.faceIndex == null) return null;
+          return { point: [hit.point.x, hit.point.y, hit.point.z], normal: [hit.face.normal.x, hit.face.normal.y, hit.face.normal.z], triangle: (hit.object.userData.triangleStart as number) + hit.faceIndex };
         };
-        const showRing = (hit: SurfaceHit | null) => {
+        const showRing = (hit: PointerHit | null) => {
           const visible = !!hit && currentMode.current === "paint";
           if (visible) {
             const radius = BRUSH_RADII[currentBrush.current.size];
@@ -238,7 +252,7 @@ export default function BodyScene({ handle, editable, mode, view, viewRequest, b
           const dx = event.clientX - stroke.x, dy = event.clientY - stroke.y;
           const steps = Math.min(24, Math.max(1, Math.ceil(Math.hypot(dx, dy) / step)));
           const intensity = pressureIntensity(event);
-          let last: SurfaceHit | null = null;
+          let last: PointerHit | null = null;
           for (let i = 1; i <= steps; i++) {
             last = hitAt(stroke.x + dx * i / steps, stroke.y + dy * i / steps);
             engine!.strokeTo(last, intensity);
@@ -353,7 +367,7 @@ export default function BodyScene({ handle, editable, mode, view, viewRequest, b
         };
 
         const ready: SceneController & { setMode(mode: InteractionMode): void } = {
-          setMode, setView,
+          setMode, setView, focus,
           snapshot: () => engine!.snapshot(),
           load(layers: PaintLayers | null) { stroke.pointer = -1; engine!.load(layers); emit("load"); },
           undo() { if (!editable || !engine!.undo()) return false; emit("undo"); return true; },
