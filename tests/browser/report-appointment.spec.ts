@@ -7,13 +7,13 @@ async function openMaya(page: Page) {
 }
 const pdfPages = (pdf: Buffer) => (pdf.toString("latin1").match(/\/Type\s*\/Page[^s]/g) ?? []).length;
 
-test("Maya's report shows the same saved evidence as the timeline, labelled synthetic and non-AI", async ({ page }) => {
+test("Maya's report shows saved evidence without summary controls or extra labels", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
   page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
   await openMaya(page);
   const sheet = page.locator("article");
-  await expect(sheet).toContainText("Synthetic sample data. Maya is not a real patient.");
+  await expect(sheet).not.toContainText("Synthetic sample data. Maya is not a real patient.");
   await expect(sheet.locator("dl")).toContainText("Days with a check-in42 of 42");
   await expect(sheet.locator("dl")).toContainText("Check-ins with nothing marked4");
   const rows = sheet.locator("tbody tr");
@@ -24,13 +24,13 @@ test("Maya's report shows the same saved evidence as the timeline, labelled synt
   await expect(rows.nth(1)).toContainText("Oct 3, 2026");
   await expect(rows.nth(2)).toContainText("Left calf");
   await expect(rows.nth(2)).toContainText("Oct 10, 2026");
-  await expect(sheet).toContainText("Factual summary, not AI-generated.");
+  await expect(sheet).not.toContainText("Factual summary, not AI-generated.");
   await expect(sheet).toContainText("Burning was first recorded in the left thigh on Oct 3, 2026, and in the left calf from Oct 10, 2026.");
   await expect(sheet).toContainText("Heat pack and walking offered partial temporary relief.");
   await expect(sheet).toContainText("Range composite.");
   await expect(sheet).toContainText("It does not provide a diagnosis or treatment advice.");
   await expect(page.getByRole("button", { name: "Generate Gemini summary" })).toHaveCount(0);
-  await expect(sheet).toContainText("Gemini isn’t configured on this server");
+  await expect(sheet).not.toContainText("Gemini");
   const images = sheet.locator("figure img");
   await expect(images).toHaveCount(2);
   for (const image of await images.all()) expect(await image.getAttribute("src")).toMatch(/^data:image\/png;base64,/);
@@ -75,15 +75,26 @@ test("empty Maya report offers its full synthetic sample", async ({ page }) => {
   await expect(page.getByRole("link", { name: "View the full sample report" })).toHaveAttribute("href", "/report?profile=maya&from=2026-09-06&to=2026-10-17");
 });
 
-test("printing shows only the report and fits one A4 and one US Letter page", async ({ page }) => {
+test("printing shows the summary followed by Logs on A4 and US Letter", async ({ page }, testInfo) => {
   await openMaya(page);
   await expect(page.locator("article figure img")).toHaveCount(2);
   await page.emulateMedia({ media: "print" });
   await expect(page.locator(".app-header")).toBeHidden();
   await expect(page.getByRole("region", { name: "Report options" })).toBeHidden();
   await expect(page.locator("article")).toBeVisible();
-  await page.screenshot({ path: "test-results/report-print.png", fullPage: true });
-  for (const format of ["A4", "Letter"] as const) expect(pdfPages(await page.pdf({ format, printBackground: true })), format).toBe(1);
+  const logs = page.locator('section[aria-labelledby="logs-heading"]');
+  await expect(logs).toBeVisible();
+  await expect(logs.locator("[data-log-page]").first()).toHaveCSS("break-before", "page");
+  await expect(logs.locator("[data-check-in-log]")).toHaveCount(42);
+  await page.screenshot({ path: "test-results/report-print.png" });
+  for (const format of ["A4", "Letter"] as const) {
+    // Check the summary independently; the complete PDF now includes all logs.
+    await logs.evaluate(element => { element.style.display = "none"; });
+    expect(pdfPages(await page.pdf({ format, printBackground: true })), `${format} summary`).toBe(1);
+    await logs.evaluate(element => { element.style.removeProperty("display"); });
+    const pdf = await page.pdf({ format, printBackground: true, path: testInfo.outputPath(`report-${format}.pdf`) });
+    expect(pdfPages(pdf), `${format} summary and logs`).toBeGreaterThan(1);
+  }
 });
 
 test("summary API reports its status honestly and refuses cross-origin requests", async ({ request, baseURL }) => {
@@ -105,5 +116,7 @@ test("phone layout keeps the report readable without horizontal overflow", async
   await openMaya(page);
   await expect(page.locator("article figure img")).toHaveCount(2);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-  await page.screenshot({ path: "test-results/report-390.png", fullPage: true });
+  await page.screenshot({ path: "test-results/report-390.png" });
+  await page.locator("#logs-heading").scrollIntoViewIfNeeded();
+  await page.screenshot({ path: "test-results/report-logs-390.png" });
 });

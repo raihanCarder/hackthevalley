@@ -78,6 +78,27 @@
 .disclaimer { border-top: 1px solid var(--border); padding-top: 12px; font-size: 12px; color: var(--muted); }
 .disclaimer p { margin: 0; max-width: 90ch; }
 
+.logsDocument { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; width: 100%; max-width: 980px; min-width: 0; justify-self: center; }
+.logsSheet { display: block; height: var(--log-sheet-height, auto); }
+.logsMeasure { position: fixed; left: -10000px; top: 0; visibility: hidden; height: auto; pointer-events: none; }
+.logsHeader { align-items: baseline; }
+.logsHeader > p { font-size: 13px; white-space: nowrap; }
+.logsIntro { margin: 14px 0 26px; color: var(--muted); font-size: 12px; max-width: 72ch; }
+.logEntry { padding-block: 22px; border-top: 1px solid var(--border); }
+.logEntry h3 { color: var(--primary); font-variant-numeric: tabular-nums; }
+.logMeasurements { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.logMeasurements th, .logMeasurements td { text-align: left; vertical-align: top; padding: 6px 12px 6px 0; border-bottom: 1px solid var(--border); }
+.logMeasurements th:first-child { width: 24%; }
+.logMeasurements th:nth-child(2) { width: 25%; }
+.logMeasurements thead th { color: var(--muted); font-size: 11px; font-weight: 500; }
+.logMeasurements tbody th { font-weight: 600; }
+.logMeasurements th:last-child, .logMeasurements td:last-child { padding-right: 0; }
+.logNote { margin-top: 14px; }
+.logNoteLabel { margin: 0 0 4px; font-size: 11px; color: var(--muted); }
+.logNoteText { margin: 0; max-width: 76ch; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.6; orphans: 3; widows: 3; }
+.logEmpty { margin: 0; }
+.logNoNote { margin: 12px 0 0; color: var(--muted); font-size: 12px; }
+
 .offscreen { position: fixed; left: -10000px; top: 0; width: 360px; height: 720px; overflow: hidden; pointer-events: none; }
 
 @media (max-width: 760px) {
@@ -95,17 +116,21 @@
   .counts > div + div { border-left: 0; border-top: 1px solid var(--border); }
   .overview { grid-template-columns: 1fr; }
   .notes li { grid-template-columns: 1fr; gap: 0; }
+  .logsHeader { align-items: start; gap: 8px; }
+  .logMeasurements { font-size: 11px; }
+  .logMeasurements th, .logMeasurements td { padding-right: 5px; }
+  .logMeasurements thead th { font-size: 10px; }
 }
 
-/* One page on A4 and US Letter: the smaller of the two (A4 width, Letter height) bounds the layout. */
+/* The summary fits one A4/Letter page. Logs flow onto subsequent pages. */
 @page { size: auto; margin: 11mm 12mm; }
 @media print {
   .synthetic { color: #6b3d0f; background: #fbf0e2; border-color: #ecd2b0; }
   .captures, .mapsPending { background: #f4f7f4; }
-  :global(body:has([data-report-root])) { background: white; }
-  :global(body:has([data-report-root]) .app-header), :global(body:has([data-report-root]) .app-footer),
-  :global(body:has([data-report-root]) .skip-link), :global(body:has([data-report-root]) .page-heading) { display: none !important; }
-  :global(body:has([data-report-root]) main) { width: auto; margin: 0; }
+  :global(body):has(.page) { background: white; }
+  :global(body):has(.page) :global(.app-header), :global(body):has(.page) :global(.app-footer),
+  :global(body):has(.page) :global(.skip-link), :global(body):has(.page) :global(.page-heading) { display: none !important; }
+  :global(body):has(.page) :global(main) { width: auto; margin: 0; }
   .controls, .summaryActions, .offscreen, .notice { display: none !important; }
   .page { display: block; }
   .sheet { border: 0; padding: 0; max-width: none; gap: 3.2mm; font-size: 8.6pt; color: black; }
@@ -129,6 +154,22 @@
   .table { font-size: 7.8pt; }
   .table th, .table td { padding: .9mm 2mm .9mm 0; }
   .table thead th { font-size: 7pt; }
-  .sheet section, .table tr, .overview { break-inside: avoid; }
+  .sheet:not(.logsSheet) section, .table tr, .overview { break-inside: avoid; }
   .tableScroll, .stripScroll { overflow: visible; }
+  .logsDocument { display: block; }
+  .logsSheet { display: block; height: auto; break-before: page; }
+  .logsMeasure { display: none; }
+  .logsHeader { break-inside: avoid; break-after: avoid; }
+  .logsHeader > p { font-size: 8pt; }
+  .logsIntro { margin: 2mm 0 4mm; font-size: 8pt; break-after: avoid; }
+  .logEntry { padding-block: 4mm; break-inside: auto; }
+  .logEntry h3 { break-after: avoid; color: black; }
+  .logMeasurements { font-size: 8pt; }
+  .logMeasurements thead th { font-size: 7.5pt; }
+  .logMeasurements th, .logMeasurements td { padding: 1mm 2mm 1mm 0; }
+  .logMeasurements tr { break-inside: avoid; }
+  .logNote { margin-top: 2mm; }
+  .logNoteLabel { font-size: 7.5pt; break-after: avoid; }
+  .logNoteText { max-width: none; font-size: 9pt; line-height: 1.5; }
+  .logNoNote { margin-top: 2mm; font-size: 8pt; }
 }

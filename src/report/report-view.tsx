@@ -13,6 +13,7 @@ import type { PaintLayers } from "@/body/layers";
 import { localToday } from "@/journal/repository";
 import { buildRangeComposite } from "./composite";
 import { DayStrip } from "./day-strip";
+import { CheckInLogs } from "./check-in-logs";
 import { buildReportModel, presentSensations, regionPhrase, type ReportModel } from "./facts";
 import { deterministicPlan, formatDate, renderStatement } from "./plan";
 import { useJournalProfile } from "@/journal/profile-context";
@@ -33,6 +34,8 @@ type GeminiStatus = { state: "configured"; model: string } | { state: "not-confi
 
 const CAPTURE_TIMEOUT_MS = 20_000;
 const MAX_RANGE_DAYS = 366;
+// Temporarily keep reports on the recorded summary without Gemini controls or labels.
+const GEMINI_SUMMARY_ENABLED = false;
 
 function daysBetween(from: string, to: string) {
   return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000) + 1;
@@ -61,6 +64,7 @@ function ProfileReport({ profile }: { profile: ReportProfileKey }) {
     : rangeDays > MAX_RANGE_DAYS ? `Choose a range of up to ${MAX_RANGE_DAYS} days.` : null;
 
   useEffect(() => {
+    if (!GEMINI_SUMMARY_ENABLED) return;
     const abort = new AbortController();
     fetch("/api/report", { cache: "no-store", signal: abort.signal }).then(response => response.json())
       .then(body => setGemini(body?.gemini?.state === "configured" ? { state: "configured", model: String(body.gemini.model) } : { state: "not-configured" }))
@@ -143,14 +147,13 @@ function ProfileReport({ profile }: { profile: ReportProfileKey }) {
       : load.state === "error" ? <div className={styles.notice} role="alert"><p>{load.message}</p><button type="button" onClick={() => setReloadKey(key => key + 1)}>Try again</button></div>
       : load.state === "empty" ? <EmptyState profile={profile} range={range}
         body={synthetic ? "Maya has no sample check-ins in this range. Choose dates within the six-week sample, or return to its full report." : "Reports use only check-ins you save. Days without a check-in stay unrecorded, and are never counted as pain-free."} />
-      : <article className={styles.sheet} aria-labelledby="report-title">
+      : <><article className={styles.sheet} aria-labelledby="report-title" data-report-summary="">
         <header className={styles.sheetHeader}>
           <div>
             <h2 id="report-title">{synthetic ? "Pain record for Maya" : "Pain record for You"}</h2>
             <p>{formatDate(range.from)} to {formatDate(range.to)} <span className={styles.quiet}>({ready!.model.facts.range.calendarDays} calendar days)</span></p>
           </div>
           <div className={styles.headerAside}>
-            {synthetic && <p className={styles.synthetic}>Synthetic sample data. Maya is not a real patient.</p>}
             <p className={styles.quiet}>Prepared {formatDate(localToday())}</p>
           </div>
         </header>
@@ -213,7 +216,9 @@ function ProfileReport({ profile }: { profile: ReportProfileKey }) {
         <footer className={styles.disclaimer}>
           <p>This feel report describes the patient’s own journal records. It does not provide a diagnosis or treatment advice. Intensity is the patient’s rating from 0 to 10. Map coverage is the share of a region’s body-map area that was marked, not a measure of skin area. Left and right are the patient’s own sides.</p>
         </footer>
-      </article>}
+      </article>
+      <CheckInLogs entries={ready!.model.entries} synthetic={synthetic} from={range.from} to={range.to} />
+      </>}
 
     {composite && <div className={styles.offscreen} aria-hidden="true" inert>
       <BodyViewer layers={composite} label="Range composite for capture" handleRef={viewer} showLegend={false} shape={bodyShape} />
@@ -222,6 +227,9 @@ function ProfileReport({ profile }: { profile: ReportProfileKey }) {
 }
 
 function SummaryBlock({ summary, factual, gemini, onRequest, onFactual }: { summary: Summary; factual: string[]; gemini: GeminiStatus; onRequest(): void; onFactual(): void }) {
+  if (!GEMINI_SUMMARY_ENABLED) {
+    return <ul className={styles.sentences}>{factual.map(sentence => <li key={sentence}>{sentence}</li>)}</ul>;
+  }
   const result = summary.state === "done" ? summary.result : null;
   const fromGemini = result?.source === "gemini";
   const sentences = result ? result.sentences : factual;
