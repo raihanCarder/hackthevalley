@@ -13,7 +13,7 @@ test("deep links, Node route, and browser-only renderer load without hydration e
   await expect(page.locator(".scene-mount")).toHaveAttribute("data-status", "ready");
   const response = await request.get("/api/status");
   expect(response.ok()).toBeTruthy();
-  expect(await response.json()).toMatchObject({ milestone: "foundation", bodyMapVersion: BODY_MAP_VERSION });
+  expect(await response.json()).toMatchObject({ application: "feel", milestone: "foundation", bodyMapVersion: BODY_MAP_VERSION });
   expect(errors).toEqual([]);
 });
 

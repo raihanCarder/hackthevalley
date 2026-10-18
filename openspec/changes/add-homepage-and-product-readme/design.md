@@ -40,11 +40,11 @@ Use a left-aligned, generously spaced hero within the main content region. Keep 
 
 Proposed copy:
 
-> **Give your pain a clearer picture.**
+> **Map what you feel.**
 >
 > Paint where and how pain feels on a rotatable 3D body, save daily check-ins, and see how intensity, coverage, and patterns change over time.
 
-Below the subtitle, use the existing Button with Next.js links: primary **Open body map** to `/`, secondary **Explore history** to `/history`. Both retain the selected profile. Add a concise supporting section covering the actual sequence: paint location/sensation/intensity, record the day with an optional note, inspect playback and regional comparisons, and bring descriptive observations to an appointment. Use flowing text or simple separated rows rather than equal feature cards. The sample-history card is removed at the user's request. Fit Home to the dynamic viewport without page scrolling; hide the supporting workflow section at widths up to 1200px or heights up to 800px so the title, subtitle, and both actions remain visible.
+Below the subtitle, use the existing Button with Next.js links: primary **Open body map** to `/`, secondary **Explore history** to `/history`. Both retain the selected profile. Add a concise supporting section covering the actual sequence: paint location/sensation/intensity, record the day with an optional note, inspect playback and regional comparisons, and bring descriptive observations to an appointment. Use flowing text or simple separated rows rather than equal feature cards. The sample-history card is removed at the user's request. Fit Home to the dynamic viewport without page scrolling; keep all three supporting features visible with full descriptions on desktop and concise copy on narrow or very short screens. Adjust type, spacing, and section layout to fit the title, subtitle, actions, and supporting information in the viewport.
 
 Reuse these existing theme values through semantic tokens:
 
@@ -71,7 +71,7 @@ Alternative considered: a separate marketing header or theme. Reusing the applic
 
 ### 4. Structure the README as product documentation grounded in source
 
-Rewrite `README.md` under the current name **Pain journal**, with this hierarchy:
+Rewrite `README.md` under the approved name **feel**, with this hierarchy:
 
 1. Product name, concise description, and the value of recording location, sensation, intensity, and change over time.
 2. Features: four pain sensations, rotatable paintable body, exact daily saved maps and optional notes, playback, regional intensity/coverage/frequency, two-date comparison, synthetic Maya, printable reports, and explicit Gemini summary generation with a factual fallback.

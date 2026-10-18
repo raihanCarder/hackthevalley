@@ -23,7 +23,7 @@ export const DEFAULT_TIMEOUT_MS = 15_000;
 const MAX_NOTES = 60;
 const MAX_NOTE_CHARACTERS_SENT = 500;
 
-const SYSTEM_INSTRUCTION = `You organize a patient's own pain-journal records into a short, descriptive summary plan for a medical appointment.
+const SYSTEM_INSTRUCTION = `You organize a patient's own records from feel into a short, descriptive summary plan for a medical appointment.
 Return only JSON matching the response schema: an object with a "statements" array of 1 to ${MAX_STATEMENTS} items, most useful first.
 Each statement uses one allowed kind, references evidence IDs from the provided evidence, and copies the referenced values exactly.
 Never diagnose, name a condition, infer causes, describe progression as a clinical process, recommend treatment, or add medication names, doses, or effects.

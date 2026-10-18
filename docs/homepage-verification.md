@@ -52,3 +52,15 @@ These are scoped homepage/navigation checks and documentation review, not a repe
 Removed the “Start with a little history” card at the user's request. Home now fits `100dvh` without page scrolling. At widths up to 1200px or heights up to 800px, the supporting workflow section is hidden so the heading, subtitle, and both actions remain visible. Short screens use compact type and spacing. The horizontal mobile navigation remains usable.
 
 The focused homepage check passed at 390×844, 768×1024, 1440×900, 1440×720, and 390×600. It checks that the card is absent, page dimensions fit the viewport, the actions and any displayed workflow fit on screen, wheel input leaves `scrollY` at zero, and keyboard navigation works. Final run: `npm run test:local-browser -- homepage.spec.ts --grep 'readable without'`, 1 passed in 6.6 seconds. Strict OpenSpec validation and diff whitespace checks also pass. Earlier build and broader browser results above describe the initial homepage implementation.
+
+## Follow-up: feel branding
+
+The approved product name is **feel**, with the tagline “Map what you feel.” The wordmark, home heading, page metadata, package identity, status response, branded messages, report footer, README, and relevant documentation now use that name. Historical persistence keys, cookie names, database configuration, and Docker Compose identity retain their existing values so saved journals and preferences remain connected.
+
+On `feat/feel-branding`, `npm run test:local-browser -- homepage.spec.ts foundation.spec.ts report-appointment.spec.ts` passed all 16 checks in 55.4 seconds. This includes the renamed accessible wordmark and page title, the fixed viewport homepage at five sizes, You/Maya navigation, saved evidence, and single-page A4/Letter report printing. Reviewed the renamed homepage at phone, tablet, and desktop widths. No live Gemini request was made.
+
+## Follow-up: supporting information in the viewport
+
+Restored the supporting painting, history/comparison, and appointment-report information at all supported screen sizes. The slogan remains “Map what you feel.” Desktop uses the full descriptions; narrower or very short screens show concise descriptions for the same features. Section layout, spacing, and type adapt to the available viewport. Only the secondary section introduction is hidden on short phones; all three feature headings and descriptions stay visible. The removed sample-history card remains absent.
+
+The focused homepage check now requires the supporting section and each feature heading/description to be visible and entirely within the viewport. It also checks page dimensions, actions, wheel scrolling, keyboard navigation, reduced motion, and unavailable services/WebGL. The final run passed in 9.5 seconds at 390×844, 768×1024, 1440×900, 1440×720, 390×600, 768×768, 1280×720, and 1024×768. Phone, tablet, and desktop screenshots were reviewed. TypeScript and strict OpenSpec validation pass.

@@ -1,8 +1,8 @@
-# Pain journal
+# feel
 
-### Give your pain a clearer picture.
+### Map what you feel.
 
-Pain journal is a browser-based journal for recording pain on a rotatable 3D body and understanding how it changes over time. Paint where pain occurs, choose its sensation and intensity, and save a daily check-in. Revisit the exact markings through playback, regional trends, and date comparisons, then prepare a printable summary for an appointment.
+feel is a browser-based journal for recording pain on a rotatable 3D body and understanding how it changes over time. Paint where pain occurs, choose its sensation and intensity, and save a daily check-in. Revisit the exact markings through playback, regional trends, and date comparisons, then prepare a printable summary for an appointment.
 
 Built at Hack the Valley, the application combines a visual daily record with descriptive analysis. Its focus is helping people document and communicate their experience.
 

@@ -1,4 +1,4 @@
-# Pain journal integration acceptance — October 17, 2026
+# feel integration acceptance — October 17, 2026
 
 The editor, daily repositories, shared-pipeline Maya, exact-map history/playback/comparison, and appointment report are connected. The OpenSpec checklist is **32/34 complete**. Two acceptance gates remain: actual demo-laptop confirmation (2.8), and a live Google Gemini request after the user supplies credentials (the live portion of 6.3). No successful live Google request is claimed.
 

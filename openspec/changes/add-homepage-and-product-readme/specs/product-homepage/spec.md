@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Introduce the pain journal's 3D mapping and change-over-time analysis through a homepage that matches the application and connects visitors to its existing workflows.
+Introduce feel's 3D mapping and change-over-time analysis through a homepage that matches the application and connects visitors to its existing workflows.
 
 ## ADDED Requirements
 
@@ -18,7 +18,7 @@ The application SHALL provide a homepage at `/home`, list Home before Check-in i
 
 #### Scenario: Open Home through the wordmark
 
-- **WHEN** a user activates the pain journal wordmark
+- **WHEN** a user activates the feel wordmark
 - **THEN** the application opens `/home`
 
 #### Scenario: Existing editor routes remain available
@@ -82,6 +82,7 @@ The homepage SHALL use the application's current charcoal palette, muted sage ac
 - **WHEN** a user views `/home` at 390 pixels wide
 - **THEN** the heading, subtitle, and actions remain readable without horizontal page overflow
 - **AND** the homepage fits the dynamic viewport without vertical page scrolling
+- **AND** all three supporting feature headings and descriptions remain visible, using concise copy where space is limited
 - **AND** all four main navigation destinations remain reachable
 - **AND** the profile control remains available
 

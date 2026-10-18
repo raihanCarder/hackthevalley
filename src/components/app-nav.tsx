@@ -19,9 +19,9 @@ export function AppNav() {
   ];
 
   return <aside className="app-sidebar" aria-label="Journal sidebar">
-    <Link className="wordmark" href="/home" aria-label="Pain journal home">
+    <Link className="wordmark" href="/home" aria-label="feel home">
       <span className="brand-icon"><Activity size={22} strokeWidth={1.6} aria-hidden="true" /></span>
-      <span>pain journal<span className="brand-caption">A little more understanding.</span></span>
+      <span>feel<span className="brand-caption">Map what you feel.</span></span>
     </Link>
     <nav aria-label="Main navigation">{links.map(({ href, label, icon: Icon }) =>
       <Button key={href} asChild variant="ghost" className="nav-link">
