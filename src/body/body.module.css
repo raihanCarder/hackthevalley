@@ -4,20 +4,19 @@
 .stageColumn { min-width: 0; min-height: 0; width: 100%; height: 100%; container-type: inline-size; }
 .workbench .stage { min-width: 0; height: 100%; }
 .stage :global(.scene-mount) { height: min(calc(100% - 48px), 145cqw); top: 50%; bottom: auto; transform: translateY(-50%); }
-.sceneHelp { margin: 12px 0 0; font-size: 11px; color: var(--muted); }
 .controlRail { min-width: 0; min-height: 0; height: 100%; overflow-y: auto; scroll-padding-top: 132px; background: var(--surface); border-left: 1px solid var(--border); scrollbar-width: thin; scrollbar-color: #53564e transparent; }
 .editorHeader { position: sticky; top: 0; z-index: 2; padding: 20px 18px 16px; background: var(--surface); border-bottom: 1px solid var(--border); }
-.editorHeader :global(.mode-switch) { width: 100%; }
-.editorHeader :global(.mode-switch button) { flex: 1; justify-content: center; }
-.viewControls, .shapeControls { padding: 18px; border-top: 1px solid var(--border); }
-.viewControls { border-top: 0; border-bottom: 1px solid var(--border); }
+.editorHeader .controlSwitch { width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+.editorHeader .controlSwitch button { min-width: 0; justify-content: center; padding-inline: 7px; }
+.controlPanel[hidden] { display: none; }
+.shapeControls h2 { margin: 0; font-size: 14px; font-weight: 500; }
+.viewControls, .shapeControls { padding: 18px; }
+.viewControls { border-bottom: 1px solid var(--border); }
 .viewControls h3 { font-size: 12px; font-weight: 500; color: var(--muted); margin: 0 0 12px; }
-.viewControls :global(.view-switch) { width: 100%; }
-.viewControls :global(.view-switch[aria-label="Camera views"]) { display: grid; grid-template-columns: 1fr 1fr; background: var(--background); }
+.viewControls :global(.view-switch) { width: 100%; display: grid; grid-template-columns: 1fr 1fr; background: var(--background); }
 .viewControls :global(.view-switch button) { min-width: 0; padding-inline: 7px; }
-.viewControls .focus { display: grid; grid-template-columns: 1fr 1fr; padding: 0; margin-top: 14px; text-align: left; }
-.viewControls .focusLabel { grid-column: 1 / -1; padding: 0 0 5px; }
-.viewControls .focus button { justify-content: start; padding-inline: 6px; font-size: 11px; }
+.viewControls .focus { margin-top: 18px; text-align: left; }
+.viewControls .focusLabel { display: block; font-size: 12px; font-weight: 500; padding: 0 0 12px; }
 
 .toolbar { --pain-color: var(--primary); display: flex; flex-direction: column; gap: 18px; padding: 18px; font-size: 12px; }
 .toolbar fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
@@ -62,11 +61,12 @@
 .legend li { display: flex; align-items: center; gap: 7px; }
 .legend li[data-present="false"] { color: var(--muted); }
 .legend li[data-present="false"] .swatch { opacity: .45; }
-.focus { align-items: center; background: transparent; border-color: transparent; }
-.focus button { font-size: 11px; padding-inline: 10px; min-height: 32px; }
+.focus { min-width: 0; width: 100%; text-align: center; }
+.focus .focusButtons { display: grid; width: 100%; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.focus .focusButtons button { width: 100%; min-width: 0; height: auto; min-height: 40px; padding: 8px 10px; font-size: 12px; line-height: 1.4; white-space: normal; overflow-wrap: anywhere; }
+.viewer .focus { width: min(420px, 100%); }
 .focusLabel { font-size: 11px; color: var(--muted); padding: 0 6px; }
 
-.shapeToggle { width: 100%; font-size: 12px; border: 1px solid var(--border); background: var(--background); }
 .shapePanel { margin-top: 14px; display: grid; gap: 16px; width: 100%; text-align: left; }
 .shapeNote { margin: 0 !important; font-size: 12px; color: var(--muted); }
 .shapeGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(170px, 100%), 1fr)); gap: 12px 18px; }
@@ -91,6 +91,4 @@
   .tools, .marked, .toolNote { grid-column: 1 / -1; }
   .tools { grid-template-columns: 1fr 1fr 1fr; }
   .tools .undo { grid-column: auto; min-height: 40px; height: auto; }
-  .focus { gap: 0; }
-  .focus button { padding-inline: 8px; }
 }

@@ -1,9 +1,9 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Button } from "@/components/ui/button";
-import { Rotate3D, Paintbrush, X } from "lucide-react";
+import { Rotate3D, Paintbrush, UserRound, NotebookPen, X } from "lucide-react";
 import type { CameraView, InteractionMode, RegionalObservation } from "@/domain/contracts";
 import { DeferredBodyHandle, type BodyChange, type BodyHandle } from "./body-handle";
 import { DEFAULT_BRUSH, type BrushSettings } from "./brush";
@@ -28,12 +28,15 @@ export interface BodyEditorProps {
   handleRef?: RefObject<BodyHandle | null>;
   /** Called after every committed stroke, undo, or load. */
   onChange?: (change: BodyChange) => void;
+  panel: "tools" | "body" | "details";
+  onPanelChange: (panel: "tools" | "body" | "details") => void;
+  checkInDetails: ReactNode;
 }
 
 const VIEWS = ["front", "back", "left", "right"] as const;
 
-/** Editable body with brush controls. The check-in page (owner B) composes this with date, note, and save controls. */
-export function BodyWorkbench({ initialLayers, handleRef, onChange }: BodyEditorProps) {
+/** Editable body with painting, shape, and daily check-in panels beside the live scene. */
+export function BodyWorkbench({ initialLayers, handleRef, onChange, panel, onPanelChange, checkInDetails }: BodyEditorProps) {
   const [handle] = useState(() => new DeferredBodyHandle(initialLayers));
   const [mode, setMode] = useState<InteractionMode>("rotate");
   const [view, setView] = useState<CameraView>("front");
@@ -44,7 +47,6 @@ export function BodyWorkbench({ initialLayers, handleRef, onChange }: BodyEditor
   const [observations, setObservations] = useState<RegionalObservation[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [bodyShape, setBodyShape] = useBodyShapePreference();
-  const [shapeOpen, setShapeOpen] = useState(false);
   // Held in a ref so an inline callback does not resubscribe (and replay the last change) on every render.
   const changeListener = useRef(onChange);
   useEffect(() => { changeListener.current = onChange; }, [onChange]);
@@ -72,6 +74,7 @@ export function BodyWorkbench({ initialLayers, handleRef, onChange }: BodyEditor
     }
   }
   const unavailable = status !== "ready";
+  const selectedControl = panel === "tools" ? mode : panel;
   const help = status === "error" ? "Painting is unavailable because the body map couldn’t load."
     : mode === "rotate" ? "Drag to turn · Scroll to zoom"
     : brush.tool === "eraser" ? "Drag over a mark to erase it. Switch to Rotate to turn the body." : "Drag on the body to paint. Switch to Rotate to turn the body.";
@@ -89,27 +92,30 @@ export function BodyWorkbench({ initialLayers, handleRef, onChange }: BodyEditor
       </div>
       <aside className={styles.controlRail} aria-label="Body map controls">
         <div className={styles.editorHeader}>
-          <div className="mode-switch" role="group" aria-label="Interaction mode">
-            <Button variant="ghost" type="button" aria-pressed={mode === "rotate"} onClick={() => setMode("rotate")}><Rotate3D size={16} aria-hidden="true" />Rotate</Button>
-            <Button variant="ghost" type="button" aria-pressed={mode === "paint"} disabled={status === "error"} onClick={() => setMode("paint")}><Paintbrush size={16} aria-hidden="true" />Paint</Button>
+          <div className={`mode-switch ${styles.controlSwitch}`} role="group" aria-label="Body map tools">
+            <Button variant="ghost" type="button" aria-pressed={selectedControl === "rotate"} onClick={() => { setMode("rotate"); onPanelChange("tools"); }}><Rotate3D size={16} aria-hidden="true" />Rotate</Button>
+            <Button variant="ghost" type="button" aria-pressed={selectedControl === "paint"} disabled={status === "error"} onClick={() => { setMode("paint"); onPanelChange("tools"); }}><Paintbrush size={16} aria-hidden="true" />Paint</Button>
+            <Button variant="ghost" type="button" aria-pressed={selectedControl === "body"} aria-controls="body-shape-panel" onClick={() => onPanelChange("body")}><UserRound size={16} aria-hidden="true" />Body</Button>
+            <Button variant="ghost" type="button" aria-pressed={selectedControl === "details"} aria-controls="check-in-details-panel" onClick={() => onPanelChange("details")}><NotebookPen size={16} aria-hidden="true" />Check-in details</Button>
           </div>
-          <p id="scene-help" className={styles.sceneHelp} aria-live="polite">{help}</p>
+          <p id="scene-help" className={styles.visuallyHidden} aria-live="polite">{help}</p>
           <p id="scene-keyboard-help" className={styles.visuallyHidden}>Keyboard: use arrow keys to turn, + / − to zoom, or Home to reset. Ctrl or ⌘ + Z undoes a stroke.</p>
         </div>
-        <section className={styles.viewControls} aria-labelledby="viewpoints-heading">
-          <h3 id="viewpoints-heading">Viewpoints</h3>
-          <div className="view-switch" role="group" aria-label="Camera views">{VIEWS.map(next =>
-            <Button variant="ghost" type="button" key={next} aria-pressed={view === next} onClick={() => changeView(next)}>{viewLabel(next)}</Button>
-          )}</div>
-          <FocusButtons onFocus={target => handle.focus(target)} />
-        </section>
-        <BrushToolbar brush={brush} onBrush={updateBrush} canUndo={canUndo} onUndo={() => handle.undo()} observations={observations} disabled={unavailable} />
-        <div className={styles.shapeControls}>
-          <Button variant="outline" type="button" className={styles.shapeToggle} aria-expanded={shapeOpen} aria-controls="body-shape-panel" onClick={() => setShapeOpen(open => !open)}>
-            {shapeOpen ? "Hide body shape" : "Adjust body shape"}
-          </Button>
-          <div id="body-shape-panel" hidden={!shapeOpen}><BodyShapePanel shape={bodyShape} onChange={setBodyShape} /></div>
+        <div className={styles.controlPanel} hidden={panel !== "tools"}>
+          <section className={styles.viewControls} aria-labelledby="viewpoints-heading">
+            <h3 id="viewpoints-heading">Viewpoints</h3>
+            <div className="view-switch" role="group" aria-label="Camera views">{VIEWS.map(next =>
+              <Button variant="ghost" type="button" key={next} aria-pressed={view === next} onClick={() => changeView(next)}>{viewLabel(next)}</Button>
+            )}</div>
+            <FocusButtons onFocus={target => handle.focus(target)} />
+          </section>
+          <BrushToolbar brush={brush} onBrush={updateBrush} canUndo={canUndo} onUndo={() => handle.undo()} observations={observations} disabled={unavailable} />
         </div>
+        <div id="body-shape-panel" className={`${styles.controlPanel} ${styles.shapeControls}`} hidden={panel !== "body"}>
+          <h2 id="body-shape-heading">Adjust body shape</h2>
+          <BodyShapePanel shape={bodyShape} onChange={setBodyShape} />
+        </div>
+        <div id="check-in-details-panel" className={styles.controlPanel} hidden={panel !== "details"}>{checkInDetails}</div>
       </aside>
     </div>
   </section>;

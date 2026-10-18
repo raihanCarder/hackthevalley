@@ -25,7 +25,7 @@ async function paintCalf(page: Page) {
     await page.mouse.move(x0, y0); await page.mouse.down(); await page.mouse.move(x1, y1, { steps: 10 }); await page.mouse.up();
   }
   await expect(canvas).toHaveAttribute("data-observations", /left-calf:aching/);
-  await page.getByRole("link", { name: "Check-in details", exact: true }).click();
+  await page.getByRole("button", { name: "Check-in details", exact: true }).click();
 }
 async function fingerprints(page: Page) {
   await expect(page.locator("canvas").first()).toHaveAttribute("data-revision", /\d+/);
@@ -69,7 +69,8 @@ async function assembledJournal(page: Page) {
   await page.getByRole("button", { name: "Visitor (My Journal)" }).click();
   await expect(page.locator("[data-history-root]")).toHaveAttribute("data-selected-date", "2026-10-15");
   await expect(page.getByText("Updated saved context.", { exact: true })).toBeVisible();
-  await page.getByRole("link", { name: "Check-in details", exact: true }).click(); await ready(page);
+  await page.getByRole("link", { name: "Check-in", exact: true }).click();
+  await page.getByRole("button", { name: "Check-in details", exact: true }).click(); await ready(page);
   // Copy over a skipped date, edit and save within the usability target.
   const started = Date.now();
   await date.fill("2026-10-17");
